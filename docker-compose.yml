@@ -3,7 +3,7 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: monitor
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: monitorpass
       POSTGRES_DB: monitor_db
     ports:
       - "5432:5432"
@@ -20,10 +20,10 @@ services:
       # EMAIL SETTINGS (ADD THESE)
       SMTP_HOST: smtp.gmail.com
       SMTP_PORT: 587
-      SMTP_USER: abc@gmail.com
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM: xyz@gmail.com
-      ALERT_EMAIL_TO: chh@gmail.com
+      SMTP_USER: itsmechhetri007@gmail.com
+      SMTP_PASSWORD: yxin suop oubk dmkh
+      SMTP_FROM: itsmechhetri007@gmail.com
+      ALERT_EMAIL_TO: chhetrimandeepp@gmail.com
 
     ports:
       - "8000:8000"

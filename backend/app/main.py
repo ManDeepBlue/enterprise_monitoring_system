@@ -22,14 +22,17 @@ from .services.icmp import ping
 # local security helper (safe hashing)
 from . import security
 
-# --- DB engine / session ---
+# --- DATABASE SETUP ---
+# This part connects the app to the PostgreSQL database using the URL from our settings.
 engine = make_engine(settings.database_url)
 SessionLocal = make_session(engine)
 
-# Create FastAPI app BEFORE mounting static or routing
+# This is the main "app" object that FastAPI uses to run everything.
 app = FastAPI(title=settings.app_name)
 
-# CORS middleware
+# --- SECURITY (CORS) ---
+# This tells the server who is allowed to talk to it. 
+# "*" means any website can send requests (useful for development).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.allow_origins.split(",")] if settings.allow_origins else ["*"],
@@ -38,7 +41,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# include routers
+# --- ROUTES (THE URLS) ---
+# These are the different "sections" of our API. 
+# For example, auth.router handles logins, and ingest.router handles data from agents.
 app.include_router(auth.router)
 app.include_router(clients.router)
 app.include_router(ingest.router)
@@ -50,7 +55,9 @@ app.include_router(productivity.router)
 app.include_router(settings_api.router)
 app.include_router(analytics.router)
 
-# --- Static / Frontend serving ---
+# --- SERVING THE DASHBOARD ---
+# This part finds our HTML/JS files in the 'frontend/static' folder 
+# and makes them available in the browser at http://localhost:8000/static/
 _frontend_dir = None
 if os.getenv("FRONTEND_DIR"):
     _frontend_dir = Path(os.getenv("FRONTEND_DIR")).resolve()
@@ -130,6 +137,10 @@ def _get_setting(db: Session, key: str, default: dict):
     return s.value if s else default
 
 
+# --- BACKGROUND JOBS (THE BRAIN) ---
+# These functions run automatically on a timer while the server is on.
+
+# Check metrics every 15s to see if we need to trigger an alert (e.g., High CPU).
 async def _job_alerts():
     db = SessionLocal()
     try:
@@ -143,36 +154,25 @@ async def _job_alerts():
     finally:
         db.close()
 
-
+# Every 5s, check when we last heard from an agent. If it's been too long, mark it as 'offline'.
 async def _job_mark_offline():
     db = SessionLocal()
     try:
-        # ALWAYS use aware UTC for comparisons
         now = datetime.now(timezone.utc)
-
         interval = _get_setting(db, "monitoring", {"offline_after_sec": 30}).get("offline_after_sec", 30)
-
         for c in db.query(models.Client).all():
-            if not c.last_seen:
-                continue
-
-            last_seen = c.last_seen
-
-            # If DB returned a naive datetime, assume it is UTC and make it aware
-            if last_seen.tzinfo is None:
-                last_seen = last_seen.replace(tzinfo=timezone.utc)
-
+            if not c.last_seen: continue
+            last_seen = c.last_seen.replace(tzinfo=timezone.utc) if c.last_seen.tzinfo is None else c.last_seen
             if (now - last_seen) > timedelta(seconds=interval):
                 if c.status != "offline":
                     c.status = "offline"
-
         db.commit()
     except Exception:
         logging.exception("Error in _job_mark_offline")
     finally:
         db.close()
 
-
+# Periodically ping network devices (routers/switches) to see if they are still reachable.
 async def _job_device_checks():
     db = SessionLocal()
     try:
@@ -221,11 +221,10 @@ async def serve_frontend_file(full_path: str, request: Request):
     raise HTTPException(status_code=404, detail=f"File not found: {full_path}")
 
 
+# This tells the server to start the background timer as soon as it turns on.
 @app.on_event("startup")
 async def startup():
-    # Create tables if not present (for demo). Prefer alembic in real deployment.
     models.Base.metadata.create_all(bind=engine)
-
     sched = AsyncIOScheduler()
     sched.add_job(_job_alerts, "interval", seconds=15, max_instances=1)
     sched.add_job(_job_mark_offline, "interval", seconds=5, max_instances=1)

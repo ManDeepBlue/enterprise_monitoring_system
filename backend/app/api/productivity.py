@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/productivity", tags=["productivity"])
 
 @router.get("/{client_id}/recent", response_model=list[WebActivityOut])
 def recent(client_id: int, minutes: int = 120, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
-    since = datetime.now().astimezone() - timedelta(minutes=minutes)
+    since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     q = (db.query(models.WebActivity)
          .filter(models.WebActivity.client_id == client_id)
          .filter(models.WebActivity.ts >= since)
@@ -21,7 +21,7 @@ def recent(client_id: int, minutes: int = 120, db: Session = Depends(get_db), _=
 
 @router.get("/{client_id}/summary")
 def summary(client_id: int, minutes: int = 480, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
-    since = datetime.now().astimezone() - timedelta(minutes=minutes)
+    since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     rows = (db.query(models.WebActivity.category, func.sum(models.WebActivity.duration_seconds).label("seconds"))
             .filter(models.WebActivity.client_id == client_id)
             .filter(models.WebActivity.ts >= since)

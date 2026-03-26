@@ -39,7 +39,17 @@ async def ingest_web(client_id: int, payload: WebActivityIn, x_agent_key: str = 
     _auth_agent(db, client_id, x_agent_key)
     ts = payload.ts or datetime.now(timezone.utc)
 
-    # Server-side categorization safeguard (agent may send category; server re-evaluates if missing/invalid)
+    # Check for existing record to prevent duplication (idempotency)
+    existing = (db.query(models.WebActivity)
+                .filter(models.WebActivity.client_id == client_id)
+                .filter(models.WebActivity.ts == ts)
+                .filter(models.WebActivity.url_hash == payload.url_hash)
+                .first())
+
+    if existing:
+        return {"ok": True, "detail": "already_exists"}
+
+    # Server-side categorization safeguard
     category = payload.category or categorize_domain(payload.domain)
 
     w = models.WebActivity(client_id=client_id, user_label=payload.user_label, ts=ts, domain=payload.domain,
