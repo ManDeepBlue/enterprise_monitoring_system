@@ -1,0 +1,8 @@
+{
+  "server_url": "http://localhost:8000",
+  "client_id": 1,
+  "agent_key": "CHANGE_ME_FROM_SERVER",
+  "interval_sec": 5,
+  "user_label": "mandeep",
+  "enable_web_activity": true
+}
