@@ -54,6 +54,21 @@ class Device(Base):
     device_type: Mapped[str] = mapped_column(String(50), nullable=False)  # router|switch|ap|other
     host: Mapped[str] = mapped_column(String(255), nullable=False)  # ip or hostname
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    snmp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    snmp_community: Mapped[str] = mapped_column(String(255), default="public", nullable=False)
+    snmp_port: Mapped[int] = mapped_column(Integer, default=161, nullable=False)
+
+class SNMPInterfaceStatus(Base):
+    __tablename__ = "snmp_interface_status"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True, nullable=False)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True, nullable=False)
+    interface_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    alias: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    admin_status: Mapped[int] = mapped_column(Integer, nullable=False)
+    oper_status: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
 
 class DeviceCheck(Base):
     __tablename__ = "device_checks"

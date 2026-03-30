@@ -14,25 +14,19 @@ import logging
 from .settings import settings
 from .db.session import make_engine, make_session
 from .db import models
-from .api import auth, clients, ingest, metrics, alerts, devices, scans, productivity, settings_api, analytics
+from .api import auth, clients, ingest, metrics, alerts, devices, scans, productivity, settings_api, analytics, snmp
 from .ws import ws_manager
 from .services.alert_engine import eval_metrics, dedupe_and_persist, DEFAULT_THRESHOLDS
 from .services.icmp import ping
-
-# local security helper (safe hashing)
-from . import security
+from .services.snmp import fetch_snmp_interfaces
 
 # --- DATABASE SETUP ---
-# This part connects the app to the PostgreSQL database using the URL from our settings.
 engine = make_engine(settings.database_url)
 SessionLocal = make_session(engine)
 
-# This is the main "app" object that FastAPI uses to run everything.
 app = FastAPI(title=settings.app_name)
 
 # --- SECURITY (CORS) ---
-# This tells the server who is allowed to talk to it. 
-# "*" means any website can send requests (useful for development).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.allow_origins.split(",")] if settings.allow_origins else ["*"],
@@ -41,9 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ROUTES (THE URLS) ---
-# These are the different "sections" of our API. 
-# For example, auth.router handles logins, and ingest.router handles data from agents.
+# --- ROUTES ---
 app.include_router(auth.router)
 app.include_router(clients.router)
 app.include_router(ingest.router)
@@ -54,15 +46,15 @@ app.include_router(scans.router)
 app.include_router(productivity.router)
 app.include_router(settings_api.router)
 app.include_router(analytics.router)
+app.include_router(snmp.router)
+
 
 # --- SERVING THE DASHBOARD ---
-# This part finds our HTML/JS files in the 'frontend/static' folder 
-# and makes them available in the browser at http://localhost:8000/static/
 _frontend_dir = None
 if os.getenv("FRONTEND_DIR"):
     _frontend_dir = Path(os.getenv("FRONTEND_DIR")).resolve()
 else:
-    # prefer repo-relative frontend/static (two levels up typical layout)
+    # prefer repo-relative frontend/static
     candidate = Path(__file__).resolve().parents[2] / "frontend" / "static"
     fallback = Path("/frontend/static")
     if candidate.exists():
@@ -77,7 +69,7 @@ _frontend_dir = Path(_frontend_dir)
 if not _frontend_dir.exists():
     logging.warning(f"Frontend static directory not found: {_frontend_dir} (frontend routes will return 404).")
 
-# mount raw static at /static (so assets are /static/assets.css, /static/app.js ...)
+# mount raw static at /static
 app.mount("/static", StaticFiles(directory=str(_frontend_dir)), name="static")
 
 _INDEX_FILE = _frontend_dir / "index.html"
@@ -91,12 +83,11 @@ def health():
 @app.get("/api/db-stats")
 def db_stats(request: Request):
     from .db import models as m
-    from .deps import require_role
     # simple auth check
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     if not token:
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
     db: Session = SessionLocal()
     try:
         tables = [
@@ -126,7 +117,6 @@ async def ws_realtime(ws: WebSocket):
     await ws_manager.connect("realtime", ws)
     try:
         while True:
-            # keep alive
             await ws.receive_text()
     except WebSocketDisconnect:
         await ws_manager.disconnect("realtime", ws)
@@ -137,10 +127,8 @@ def _get_setting(db: Session, key: str, default: dict):
     return s.value if s else default
 
 
-# --- BACKGROUND JOBS (THE BRAIN) ---
-# These functions run automatically on a timer while the server is on.
+# --- BACKGROUND JOBS ---
 
-# Check metrics every 15s to see if we need to trigger an alert (e.g., High CPU).
 async def _job_alerts():
     db = SessionLocal()
     try:
@@ -154,7 +142,6 @@ async def _job_alerts():
     finally:
         db.close()
 
-# Every 5s, check when we last heard from an agent. If it's been too long, mark it as 'offline'.
 async def _job_mark_offline():
     db = SessionLocal()
     try:
@@ -172,7 +159,6 @@ async def _job_mark_offline():
     finally:
         db.close()
 
-# Periodically ping network devices (routers/switches) to see if they are still reachable.
 async def _job_device_checks():
     db = SessionLocal()
     try:
@@ -184,6 +170,33 @@ async def _job_device_checks():
         db.commit()
     except Exception:
         logging.exception("Error in _job_device_checks")
+    finally:
+        db.close()
+
+async def _job_snmp_checks():
+    db = SessionLocal()
+    try:
+        devices_q = db.query(models.Device).filter(models.Device.is_enabled == True, models.Device.snmp_enabled == True).all()
+        for d in devices_q:
+            try:
+                results = await fetch_snmp_interfaces(d.host, d.snmp_community, d.snmp_port)
+                for iface in results:
+                    db.add(models.SNMPInterfaceStatus(
+                        device_id=d.id,
+                        interface_index=iface["index"],
+                        description=iface["description"],
+                        alias=iface.get("alias"),
+                        admin_status=iface["admin_status"],
+                        oper_status=iface["oper_status"],
+                        reason=iface["reason"]
+                    ))
+                db.commit()
+                # Broadcast that SNMP data for this device has been updated
+                await ws_manager.broadcast("realtime", {"type": "snmp_updated", "device_id": d.id})
+            except Exception:
+                logging.exception(f"Error polling SNMP for device {d.host}")
+    except Exception:
+        logging.exception("Error in _job_snmp_checks")
     finally:
         db.close()
 
@@ -221,7 +234,6 @@ async def serve_frontend_file(full_path: str, request: Request):
     raise HTTPException(status_code=404, detail=f"File not found: {full_path}")
 
 
-# This tells the server to start the background timer as soon as it turns on.
 @app.on_event("startup")
 async def startup():
     models.Base.metadata.create_all(bind=engine)
@@ -229,4 +241,5 @@ async def startup():
     sched.add_job(_job_alerts, "interval", seconds=15, max_instances=1)
     sched.add_job(_job_mark_offline, "interval", seconds=5, max_instances=1)
     sched.add_job(_job_device_checks, "interval", seconds=settings.default_device_check_interval_sec, max_instances=1)
+    sched.add_job(_job_snmp_checks, "interval", seconds=60, max_instances=1)
     sched.start()

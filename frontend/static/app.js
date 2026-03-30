@@ -44,6 +44,7 @@ function mountLayout(pageTitle, pageSubtitle){
         <a href="/productivity.html">Employee Productivity</a>
         <a href="/alerts.html">Alerts & Notifications</a>
         <a href="/devices.html">Network Device Monitoring</a>
+        <a href="/snmp.html">SNMP Link Status</a>
         <a href="/analytics.html">Visual Analytics</a>
         <a href="/logs.html">Logs & Database</a>
         <a href="/settings.html">System Settings</a>

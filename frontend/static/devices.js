@@ -22,6 +22,13 @@ content.innerHTML = `
       <div><div class="small">Host/IP</div><input class="input" id="host" placeholder="192.168.1.1"/></div>
     </div>
     <div style="height:12px"></div>
+    <div style="font-weight:700;margin-bottom:8px">SNMP Settings</div>
+    <div class="row">
+      <div><div class="small">Enable SNMP</div><input type="checkbox" id="snmp_enabled"/></div>
+      <div><div class="small">Community</div><input class="input" id="snmp_community" value="public"/></div>
+      <div><div class="small">Port</div><input class="input" id="snmp_port" value="161" type="number"/></div>
+    </div>
+    <div style="height:12px"></div>
     <button class="btn" id="add">Add</button>
     <div class="small" id="msg" style="margin-top:10px"></div>
   </div>
@@ -73,10 +80,16 @@ document.getElementById("add").onclick = async ()=>{
   const device_type = document.getElementById("type").value;
   const name = document.getElementById("name").value.trim();
   const host = document.getElementById("host").value.trim();
+  const snmp_enabled = document.getElementById("snmp_enabled").checked;
+  const snmp_community = document.getElementById("snmp_community").value.trim() || "public";
+  const snmp_port = parseInt(document.getElementById("snmp_port").value, 10) || 161;
   const msg = document.getElementById("msg");
   msg.textContent = "Saving…";
   try{
-    await apiFetch("/api/devices", {method:"POST", body: JSON.stringify({client_id, name, host, device_type, is_enabled:true})});
+    await apiFetch("/api/devices", {method:"POST", body: JSON.stringify({
+      client_id, name, host, device_type, is_enabled:true,
+      snmp_enabled, snmp_community, snmp_port
+    })});
     msg.textContent = "Added.";
     await loadDevices();
   }catch(e){ msg.textContent = "Failed: " + e.message; }

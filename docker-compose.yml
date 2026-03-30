@@ -27,10 +27,28 @@ services:
 
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./frontend/static:/frontend/static:ro
     depends_on:
       - db
+
+  mock-router:
+    image: debian:bullseye-slim
+    command: >
+      sh -c "apt-get update && apt-get install -y snmpd && 
+             echo 'view all included .1' > /etc/snmp/snmpd.conf &&
+             echo 'rocommunity public default -V all' >> /etc/snmp/snmpd.conf &&
+             snmpd -f -Lo --agentaddress=udp:161"
+
+  mock-switch:
+    image: debian:bullseye-slim
+    command: >
+      sh -c "apt-get update && apt-get install -y snmpd && 
+             echo 'view all included .1' > /etc/snmp/snmpd.conf &&
+             echo 'rocommunity private default -V all' >> /etc/snmp/snmpd.conf &&
+             snmpd -f -Lo --agentaddress=udp:161"
 
 volumes:
   dbdata:

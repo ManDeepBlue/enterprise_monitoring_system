@@ -19,3 +19,4 @@ email-validator
 bcrypt==4.0.1
 aiosmtplib==3.0.1
 numpy>=1.26.0
+pysnmp>=7.1.22

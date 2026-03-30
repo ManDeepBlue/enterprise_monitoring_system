@@ -14,12 +14,19 @@ def list_devices(db: Session = Depends(get_db), _=Depends(require_role("admin","
     return db.query(models.Device).order_by(models.Device.id.asc()).all()
 
 @router.post("", response_model=DeviceOut)
-def add_device(payload: DeviceCreate, db: Session = Depends(get_db), user=Depends(require_role("admin","analyst"))):
+async def add_device(payload: DeviceCreate, db: Session = Depends(get_db), user=Depends(require_role("admin","analyst"))):
     d = models.Device(**payload.model_dump())
     db.add(d); db.flush(); db.refresh(d)
     audit.log(db, user.email, "add_device", "device", d.id,
               meta={"name": d.name, "host": d.host})
     db.commit()
+    
+    # If SNMP is enabled, try an initial poll immediately in the background
+    if d.snmp_enabled:
+        from ..main import _job_snmp_checks
+        import asyncio
+        asyncio.create_task(_job_snmp_checks())
+        
     return d
 
 @router.delete("/{device_id}", response_model=Msg)
