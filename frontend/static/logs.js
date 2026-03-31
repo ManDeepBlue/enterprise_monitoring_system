@@ -57,9 +57,11 @@ content.innerHTML = `
 
 let allLogs = [];
 
-function fmtTime(iso) {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+function esc(str) {
+  if (!str) return "";
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function renderTableStats(tables) {
@@ -67,7 +69,7 @@ function renderTableStats(tables) {
   if (!tables || !tables.length) { el.innerHTML = '<span class="small" style="color:var(--muted)">No data</span>'; return; }
   el.innerHTML = tables.map(t => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-      <span style="font-size:13px;color:var(--muted)">${t.name}</span>
+      <span style="font-size:13px;color:var(--muted)">${esc(t.name)}</span>
       <span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">${t.rows.toLocaleString()} rows</span>
     </div>
   `).join("");
@@ -84,14 +86,14 @@ function renderLogs(logs) {
   empty.style.display = "none";
   tbody.innerHTML = logs.map((l, i) => `
     <tr style="border-bottom:1px solid rgba(255,255,255,.04);${i % 2 === 0 ? "" : "background:rgba(255,255,255,.02)"}">
-      <td style="padding:7px 10px;white-space:nowrap;color:var(--muted)">${fmtTime(l.ts)}</td>
-      <td style="padding:7px 10px;font-weight:500">${l.user || "—"}</td>
+      <td style="padding:7px 10px;white-space:nowrap;color:var(--muted)">${esc(fmtTime(l.ts))}</td>
+      <td style="padding:7px 10px;font-weight:500">${esc(l.user || "—")}</td>
       <td style="padding:7px 10px">
-        <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;background:rgba(99,153,34,.15);color:#97c459">${l.action || "—"}</span>
+        <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;background:rgba(99,153,34,.15);color:#97c459">${esc(l.action || "—")}</span>
       </td>
       <td style="padding:7px 10px;color:var(--muted);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-          title="${(l.detail||"").replace(/"/g,"'")}">
-        ${l.detail || "—"}
+          title="${esc(l.detail || "")}">
+        ${esc(l.detail || "—")}
       </td>
     </tr>
   `).join("");

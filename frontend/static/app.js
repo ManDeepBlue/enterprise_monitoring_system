@@ -67,14 +67,22 @@ function mountLayout(pageTitle, pageSubtitle){
   setActiveNav();
 }
 
-// Always parse server timestamps as UTC (appends Z if missing) and display in local time
+// Always parse server timestamps as UTC (appends Z if missing)
+function parseDate(ts){
+  if(!ts) return new Date(NaN);
+  const s = ts.toString();
+  // Only append Z if it doesn't already have a timezone offset or Z
+  const hasTZ = /(Z|[+-]\d{2}(:?\d{2})?)$/.test(s);
+  return new Date(hasTZ ? s : s + "Z");
+}
+
 function fmtTime(ts){
-  if(!ts) return "—";
-  return new Date(ts.endsWith("Z") ? ts : ts + "Z").toLocaleString();
+  const d = parseDate(ts);
+  return isNaN(d) ? "—" : d.toLocaleString();
 }
 function fmtTimeShort(ts){
-  if(!ts) return "—";
-  return new Date(ts.endsWith("Z") ? ts : ts + "Z").toLocaleTimeString();
+  const d = parseDate(ts);
+  return isNaN(d) ? "—" : d.toLocaleTimeString();
 }
 
 function setStatus(ok, text){

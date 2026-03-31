@@ -29,7 +29,9 @@ content.innerHTML = `
 `;
 
 function timeAgo(ts) {
-  const ms = new Date() - new Date(ts.endsWith("Z") ? ts : ts + "Z");
+  const d = parseDate(ts);
+  if(isNaN(d)) return "—";
+  const ms = new Date() - d;
   const sec = Math.floor(ms / 1000);
   if (sec < 60) return "just now";
   const min = Math.floor(sec / 60);
