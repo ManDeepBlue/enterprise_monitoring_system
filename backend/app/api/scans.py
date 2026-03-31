@@ -47,7 +47,7 @@ async def _run_scan(db_url: str, run_id: int):
         db.close()
 
 @router.post("", response_model=ScanRunOut)
-def start_scan(payload: ScanRequest, background: BackgroundTasks, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst"))):
+async def start_scan(payload: ScanRequest, background: BackgroundTasks, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst"))):
     run = models.PortScanRun(client_id=payload.client_id, target=payload.target)
     db.add(run); db.commit(); db.refresh(run)
 

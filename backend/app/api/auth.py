@@ -19,6 +19,8 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
                       ip=request.client.host if request.client else None)
             db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled")
     token = create_access_token(user.email, user.role)
     audit_log(db, user.email, "login", "user", user.email,
               ip=request.client.host if request.client else None,
@@ -28,9 +30,10 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 @router.post("/bootstrap-admin", response_model=Msg)
 def bootstrap_admin(email: str, password: str, db: Session = Depends(get_db)):
-    existing = db.query(models.User).filter(models.User.email == email).first()
-    if existing:
-        return Msg(message="Admin already exists")
+    # Block entirely if any admin user already exists
+    any_admin = db.query(models.User).filter(models.User.role == "admin").first()
+    if any_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin already exists")
     db.add(models.User(email=email, hashed_password=hash_password(password), role="admin"))
     audit_log(db, email, "bootstrap_admin", "user", email)
     db.commit()

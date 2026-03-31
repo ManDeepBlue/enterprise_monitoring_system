@@ -10,9 +10,9 @@ from jose import jwt, JWTError
 # otherwise fall back to environment defaults.
 try:
     from .settings import settings
-    _SECRET_KEY = getattr(settings, "jwt_secret_key", None) or getattr(settings, "secret_key", None)
-    _ALGORITHM = getattr(settings, "jwt_algorithm", "HS256")
-    _ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "access_token_expire_minutes", 60 * 24 * 7)
+    _SECRET_KEY = settings.jwt_secret
+    _ALGORITHM = settings.jwt_algorithm
+    _ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_minutes
 except Exception:
     import os
     _SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "change-me-in-production")

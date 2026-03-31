@@ -75,12 +75,13 @@ def read_recent_domains(limit=50):
     visits = []
 
     for p in find_chrome_history_paths():
-        tmp = p + ".tmp_copy"
+        tmp = p + f".tmp_{int(time.time())}"
         try:
+            # Copy file to avoid locks
             shutil.copy2(p, tmp)
-            con = sqlite3.connect(tmp)
+            con = sqlite3.connect(f"file:{tmp}?mode=ro", uri=True)
             cur = con.cursor()
-
+            
             cur.execute("""
                 SELECT url, last_visit_time
                 FROM urls
@@ -88,13 +89,11 @@ def read_recent_domains(limit=50):
                 ORDER BY last_visit_time DESC
                 LIMIT ?
             """, (limit,))
-
-            rows = cur.fetchall()   # FIX: fetch rows before closing
+            rows = cur.fetchall()
             con.close()
 
-            for url, ts_raw in rows:   # FIX: loop to populate visits
-                if not url:
-                    continue
+            for url, ts_raw in rows:
+                if not url: continue
                 try:
                     domain = urlparse(url).netloc.lower()
                     if domain:
@@ -104,17 +103,13 @@ def read_recent_domains(limit=50):
                             "ts_raw": ts_raw,
                             "ts": webkit_to_iso(ts_raw)
                         })
-                except Exception:
-                    continue
-
-        except Exception:
-            pass
+                except Exception: continue
+        except Exception as e:
+            print(f"Error reading history from {p}: {e}")
         finally:
             if os.path.exists(tmp):
-                try:
-                    os.remove(tmp)
-                except Exception:
-                    pass
+                try: os.remove(tmp)
+                except Exception: pass
 
     # Remove duplicates
     seen = set()

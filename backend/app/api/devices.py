@@ -23,9 +23,9 @@ async def add_device(payload: DeviceCreate, db: Session = Depends(get_db), user=
     
     # If SNMP is enabled, try an initial poll immediately in the background
     if d.snmp_enabled:
-        from ..main import _job_snmp_checks
+        from .. import jobs
         import asyncio
-        asyncio.create_task(_job_snmp_checks())
+        asyncio.create_task(jobs._job_snmp_checks())
         
     return d
 

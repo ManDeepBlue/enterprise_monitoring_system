@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
@@ -6,6 +6,8 @@ from ..deps import get_db, require_role
 from ..db import models
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+
+ALLOWED_METRICS = {"cpu", "ram", "disk", "rx_kbps", "tx_kbps", "connections"}
 
 @router.get("/clients/health")
 def clients_health(db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
@@ -28,6 +30,10 @@ def clients_health(db: Session = Depends(get_db), _=Depends(require_role("admin"
 @router.get("/forecast/simple")
 def simple_forecast(client_id: int, metric: str = "cpu", minutes: int = 240, horizon_points: int = 12,
                     db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
+    
+    if metric not in ALLOWED_METRICS:
+        raise HTTPException(status_code=400, detail=f"Invalid metric. Allowed: {list(ALLOWED_METRICS)}")
+
     # Simple linear regression forecast for demo/academic use.
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     rows = (db.query(models.Metric.ts, getattr(models.Metric, metric))

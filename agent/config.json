@@ -1,7 +1,7 @@
 {
   "server_url": "http://localhost:8000",
-  "client_id": 5,
-  "agent_key": "sjGRCQbeYQbw_frTS-drqbgf6UyubBSYttH6FYZ_40E",
+  "client_id": 1,
+  "agent_key": "atNFXw3Bi7P5EvFCzQ8M4y98dz6y3RVLE2v7JkJd6-Y",
   "interval_sec": 5,
   "user_label": "mandeep",
   "enable_web_activity": true

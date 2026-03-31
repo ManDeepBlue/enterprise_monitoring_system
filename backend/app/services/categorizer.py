@@ -16,7 +16,7 @@ DEFAULT_RULES = {
     ],
     "social": [
         "facebook.com", "instagram.com", "tiktok.com", "twitter.com", "x.com", 
-        "reddit.com", "pinterest.com", "snapchat.com", "threads.net"
+        "reddit.com", "pinterest.com", "snapchat.com", "threads.net", "messenger.com"
     ],
     "streaming": [
         "youtube.com", "netflix.com", "primevideo.com", "spotify.com", 
