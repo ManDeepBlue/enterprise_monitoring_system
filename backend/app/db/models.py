@@ -130,7 +130,6 @@ class WebActivity(Base):
     domain: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     url_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False)
-    duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     client = relationship("Client", back_populates="web_activity")
 

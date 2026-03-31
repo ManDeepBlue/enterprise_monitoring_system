@@ -22,9 +22,9 @@ def recent(client_id: int, minutes: int = 120, db: Session = Depends(get_db), _=
 @router.get("/{client_id}/summary")
 def summary(client_id: int, minutes: int = 480, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
-    rows = (db.query(models.WebActivity.category, func.sum(models.WebActivity.duration_seconds).label("seconds"))
+    rows = (db.query(models.WebActivity.category, func.count(models.WebActivity.id).label("count"))
             .filter(models.WebActivity.client_id == client_id)
             .filter(models.WebActivity.ts >= since)
             .group_by(models.WebActivity.category)
             .all())
-    return {"since": since.isoformat(), "by_category": [{"category": c, "seconds": int(s)} for c,s in rows]}
+    return {"since": since.isoformat(), "by_category": [{"category": c, "count": int(cnt)} for c,cnt in rows]}

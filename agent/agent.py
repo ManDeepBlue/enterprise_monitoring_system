@@ -174,9 +174,8 @@ def main():
                                 "ts": v["ts"],
                                 "domain": v["domain"],
                                 "url_hash": v["url_hash"],
-                                "category": "",
-                                "duration_seconds": 30
-                            }
+                                "category": ""
+                                }                            
                             try:
                                 resp = http.post(
                                     f"{server}/api/ingest/{client_id}/web",

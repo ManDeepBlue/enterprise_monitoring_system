@@ -7,13 +7,12 @@ class WebActivityIn(BaseModel):
     domain: str
     url_hash: str
     category: str
-    duration_seconds: int = 0
 
 class WebActivityOut(BaseModel):
+    id: int
     ts: datetime
     domain: str
     category: str
-    duration_seconds: int
 
     @field_serializer("ts")
     def serialize_ts(self, v: datetime) -> str:

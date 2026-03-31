@@ -53,7 +53,7 @@ async function refresh(){
   const recent = await apiFetch(`/api/productivity/${clientId}/recent?minutes=${minutes}`);
 
   const labels = summary.by_category.map(x=>x.category);
-  const values = summary.by_category.map(x=>x.seconds);
+  const values = summary.by_category.map(x=>x.count);
   buildPie(labels, values);
 
   document.getElementById("rows").innerHTML = recent.map(r=>`<tr>

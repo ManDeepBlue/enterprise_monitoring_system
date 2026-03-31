@@ -53,8 +53,8 @@ async def ingest_web(client_id: int, payload: WebActivityIn, x_agent_key: str = 
     category = payload.category or categorize_domain(payload.domain)
 
     w = models.WebActivity(client_id=client_id, user_label=payload.user_label, ts=ts, domain=payload.domain,
-                           url_hash=payload.url_hash, category=category, duration_seconds=payload.duration_seconds)
+                           url_hash=payload.url_hash, category=category)
     db.add(w); db.commit()
     await ws_manager.broadcast("realtime", {"type":"web", "client_id":client_id, "ts": ts.isoformat(),
-                                           "domain":payload.domain, "category":category, "duration":payload.duration_seconds})
+                                           "domain":payload.domain, "category":category})
     return {"ok": True}
