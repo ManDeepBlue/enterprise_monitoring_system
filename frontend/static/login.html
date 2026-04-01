@@ -50,7 +50,9 @@ document.getElementById("btn").onclick = async () => {
     });
     if(!res.ok) throw new Error(await res.text());
     const data = await res.json();
+    console.log("Login success, role:", data.role);
     localStorage.setItem("token", data.access_token);
+    localStorage.setItem("role", data.role);
     location.href="/index.html";
   }catch(e){
     document.getElementById("err").textContent = "Login failed. ";

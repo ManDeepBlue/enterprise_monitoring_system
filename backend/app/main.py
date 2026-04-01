@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timezone
 from pathlib import Path
+from contextlib import asynccontextmanager
 import os
 import logging
 
@@ -14,13 +15,27 @@ import logging
 from .settings import settings
 from .db.session import engine, SessionLocal
 from .db import models
-from .api import auth, clients, ingest, metrics, alerts, devices, scans, productivity, settings_api, analytics, snmp
+from .api import auth, clients, ingest, metrics, alerts, devices, scans, productivity, settings_api, analytics, snmp, users
 from .deps import get_db, require_role
 from .ws import ws_manager
 from . import jobs
 
+# --- LIFESPAN MANAGER ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    models.Base.metadata.create_all(bind=engine)
+    sched = AsyncIOScheduler()
+    sched.add_job(jobs._job_alerts, "interval", seconds=15, max_instances=1)
+    sched.add_job(jobs._job_mark_offline, "interval", seconds=5, max_instances=1)
+    sched.add_job(jobs._job_device_checks, "interval", seconds=settings.default_device_check_interval_sec, max_instances=1)
+    sched.add_job(jobs._job_snmp_checks, "interval", seconds=60, max_instances=1)
+    sched.start()
+    yield
+    sched.shutdown()
+
 # --- DATABASE SETUP ---
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 # --- SECURITY (CORS) ---
 app.add_middleware(
@@ -33,6 +48,7 @@ app.add_middleware(
 
 # --- ROUTES ---
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(clients.router)
 app.include_router(ingest.router)
 app.include_router(metrics.router)
@@ -126,14 +142,3 @@ async def serve_frontend_file(full_path: str, request: Request):
     if _INDEX_FILE.exists():
         return FileResponse(_INDEX_FILE)
     raise HTTPException(status_code=404, detail=f"File not found: {full_path}")
-
-
-@app.on_event("startup")
-async def startup():
-    models.Base.metadata.create_all(bind=engine)
-    sched = AsyncIOScheduler()
-    sched.add_job(jobs._job_alerts, "interval", seconds=15, max_instances=1)
-    sched.add_job(jobs._job_mark_offline, "interval", seconds=5, max_instances=1)
-    sched.add_job(jobs._job_device_checks, "interval", seconds=settings.default_device_check_interval_sec, max_instances=1)
-    sched.add_job(jobs._job_snmp_checks, "interval", seconds=60, max_instances=1)
-    sched.start()

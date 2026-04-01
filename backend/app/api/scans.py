@@ -56,9 +56,9 @@ async def start_scan(payload: ScanRequest, background: BackgroundTasks, db: Sess
     return run
 
 @router.get("", response_model=list[ScanRunOut])
-def list_scans(limit: int = 50, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
+def list_scans(limit: int = 50, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst"))):
     return db.query(models.PortScanRun).order_by(models.PortScanRun.started_at.desc()).limit(limit).all()
 
 @router.get("/{scan_id}/findings", response_model=list[FindingOut])
-def findings(scan_id: int, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
+def findings(scan_id: int, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst"))):
     return (db.query(models.PortFinding).filter(models.PortFinding.scan_id == scan_id).order_by(models.PortFinding.port.asc()).all())

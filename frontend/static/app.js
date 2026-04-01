@@ -1,7 +1,30 @@
 const API = location.origin; // same origin
 function getToken(){ return localStorage.getItem("token"); }
 function setToken(t){ localStorage.setItem("token", t); }
-function logout(){ localStorage.removeItem("token"); location.href="/login.html"; }
+function getRole(){ 
+  const role = localStorage.getItem("role");
+  if(role) return role;
+  
+  // Fallback: Try to decode the role from the JWT token if it exists
+  const token = getToken();
+  if(token){
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(window.atob(base64));
+      if(payload.role) {
+        localStorage.setItem("role", payload.role);
+        return payload.role;
+      }
+    } catch (e) { console.error("Token decode failed", e); }
+  }
+  return "guest"; 
+}
+function logout(){ 
+  localStorage.removeItem("token"); 
+  localStorage.removeItem("role"); 
+  location.href="/login.html"; 
+}
 
 async function apiFetch(path, opts={}){
   opts.headers = opts.headers || {};
@@ -11,7 +34,12 @@ async function apiFetch(path, opts={}){
   const res = await fetch(API + path, opts);
   if(res.status === 401){ logout(); }
   if(!res.ok){
-    const text = await res.text();
+    if(res.status === 403) throw new Error("Access Denied: You do not have permission for this action.");
+    let text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      if(json.detail) text = json.detail;
+    } catch(e) {}
     throw new Error(text || res.statusText);
   }
   const ct = res.headers.get("content-type") || "";
@@ -27,6 +55,10 @@ function setActiveNav(){
 
 function mountLayout(pageTitle, pageSubtitle){
   const root = document.getElementById("app");
+  const role = getRole();
+  console.log("Current role in layout:", role);
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  
   root.innerHTML = `
   <div class="container">
     <aside class="sidebar">
@@ -34,20 +66,20 @@ function mountLayout(pageTitle, pageSubtitle){
         <div class="logo" aria-hidden="true"></div>
         <div>
           <h1>Enterprise Monitoring</h1>
-          <div class="small">Admin Console</div>
+          <div class="small">${roleLabel} Console</div>
         </div>
       </div>
       <nav class="nav" aria-label="Primary">
         <a href="/index.html">Dashboard</a>
-        <a href="/security.html">Security Assessment</a>
+        ${role !== 'readonly' ? '<a href="/security.html">Security Assessment</a>' : ''}
         <a href="/performance.html">Performance Monitoring</a>
         <a href="/productivity.html">Employee Productivity</a>
         <a href="/alerts.html">Alerts & Notifications</a>
         <a href="/devices.html">Network Device Monitoring</a>
         <a href="/snmp.html">SNMP Link Status</a>
         <a href="/analytics.html">Visual Analytics</a>
-        <a href="/logs.html">Logs & Database</a>
-        <a href="/settings.html">System Settings</a>
+        ${role === 'admin' ? '<a href="/logs.html">Logs & Database</a>' : ''}
+        ${role === 'admin' ? '<a href="/settings.html">System Settings</a>' : ''}
       </nav>
       <div class="footer">
         <button class="btn secondary" onclick="logout()">Sign out</button>

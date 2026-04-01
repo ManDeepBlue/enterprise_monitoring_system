@@ -1,6 +1,6 @@
-
 mountLayout("System Settings", "Monitoring intervals, alert thresholds, user and policy configuration.");
 const content = document.getElementById("content");
+// Changing from cols-2 to auto-fit or just a flex layout for better spacing, but we'll stick to cols-2
 content.className = "grid cols-2";
 content.innerHTML = `
   <div class="card">
@@ -33,7 +33,100 @@ content.innerHTML = `
     <button class="btn secondary" id="saveRet">Save policy</button>
     <div class="small" id="msg2" style="margin-top:10px"></div>
   </div>
+
+  <div class="card" style="grid-column: 1 / -1">
+    <div style="font-weight:700;margin-bottom:8px">User Management</div>
+    <div class="row" style="align-items:flex-end">
+      <div>
+        <div class="small">Email</div>
+        <input class="input" id="newEmail" type="email" placeholder="user@example.com">
+      </div>
+      <div>
+        <div class="small">Password</div>
+        <input class="input" id="newPass" type="password" placeholder="******">
+      </div>
+      <div>
+        <div class="small">Role</div>
+        <select class="input" id="newRole">
+          <option value="admin">Admin</option>
+          <option value="analyst">Analyst</option>
+          <option value="readonly" selected>Read Only</option>
+        </select>
+      </div>
+      <button class="btn" id="addUser">Add User</button>
+    </div>
+    <div class="small" id="msgUser" style="margin-top:10px;margin-bottom:10px;color:var(--danger)"></div>
+    <div style="overflow-x:auto;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th>Created At</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="5" class="small">Loading users...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 `;
+
+async function loadUsers() {
+  const tbody = document.getElementById("userTableBody");
+  try {
+    const users = await apiFetch("/api/users");
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td>${u.email}</td>
+        <td>
+          <select class="input" onchange="updateUser(${u.id}, 'role', this.value)" style="padding:4px">
+            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="analyst" ${u.role === 'analyst' ? 'selected' : ''}>Analyst</option>
+            <option value="readonly" ${u.role === 'readonly' ? 'selected' : ''}>Read Only</option>
+          </select>
+        </td>
+        <td>
+          <input type="checkbox" ${u.is_active ? 'checked' : ''} onchange="updateUser(${u.id}, 'is_active', this.checked)">
+        </td>
+        <td class="small">${fmtTime(u.created_at)}</td>
+        <td>
+          <button class="btn" style="padding:4px 8px;font-size:12px;background:var(--danger);color:#fff" onclick="deleteUser(${u.id})">Delete</button>
+        </td>
+      </tr>
+    `).join("") || '<tr><td colspan="5" class="small">No users found.</td></tr>';
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="small" style="color:var(--danger)">Failed to load users: ${e.message}</td></tr>`;
+  }
+}
+
+window.updateUser = async (id, field, value) => {
+  try {
+    const payload = {};
+    payload[field] = value;
+    await apiFetch("/api/users/" + id, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    });
+    // Optional: reload users
+  } catch (e) {
+    alert("Failed to update user: " + e.message);
+    loadUsers(); // revert changes on error
+  }
+};
+
+window.deleteUser = async (id) => {
+  if(!confirm("Are you sure you want to delete this user?")) return;
+  try {
+    await apiFetch("/api/users/" + id, { method: "DELETE" });
+    loadUsers();
+  } catch (e) {
+    alert("Failed to delete user: " + e.message);
+  }
+};
 
 async function load(){
   const all = await apiFetch("/api/settings");
@@ -46,6 +139,8 @@ async function load(){
   const pol = (all.find(x=>x.key==="retention")||{}).value || {metrics_days:30, web_days:30};
   document.getElementById("mret").value = pol.metrics_days;
   document.getElementById("wret").value = pol.web_days;
+  
+  await loadUsers();
 }
 
 document.getElementById("save").onclick = async ()=>{
@@ -72,6 +167,34 @@ document.getElementById("saveRet").onclick = async ()=>{
     }})});
     msg.textContent = "Saved.";
   }catch(e){ msg.textContent = "Failed: " + e.message; }
+};
+
+document.getElementById("addUser").onclick = async ()=>{
+  const msgUser = document.getElementById("msgUser");
+  const email = document.getElementById("newEmail").value.trim();
+  const password = document.getElementById("newPass").value;
+  const role = document.getElementById("newRole").value;
+  
+  if(!email || !password) {
+    msgUser.textContent = "Email and password are required.";
+    return;
+  }
+  
+  msgUser.style.color = "var(--text)";
+  msgUser.textContent = "Adding...";
+  try {
+    await apiFetch("/api/users", {
+      method: "POST",
+      body: JSON.stringify({ email, password, role })
+    });
+    msgUser.textContent = "";
+    document.getElementById("newEmail").value = "";
+    document.getElementById("newPass").value = "";
+    loadUsers();
+  } catch (e) {
+    msgUser.style.color = "var(--danger)";
+    msgUser.textContent = "Failed: " + e.message;
+  }
 };
 
 (async ()=>{
