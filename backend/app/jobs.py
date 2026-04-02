@@ -17,9 +17,16 @@ def _get_setting(db: Session, key: str, default: dict):
 async def _job_alerts():
     db = SessionLocal()
     try:
+        from .services.alert_engine import eval_audit_logs
         thresholds = _get_setting(db, "alert_thresholds", DEFAULT_THRESHOLDS)
-        new_alerts = eval_metrics(db, thresholds)
-        created = await dedupe_and_persist(db, new_alerts, window_sec=900)
+        
+        # Smart Alerting: Check both metrics AND audit trail
+        metric_alerts = eval_metrics(db, thresholds)
+        audit_alerts = eval_audit_logs(db, thresholds)
+        
+        all_alerts = metric_alerts + audit_alerts
+        
+        created = await dedupe_and_persist(db, all_alerts, window_sec=900)
         if created:
             await ws_manager.broadcast("realtime", {"type": "alerts_updated"})
     except Exception:
