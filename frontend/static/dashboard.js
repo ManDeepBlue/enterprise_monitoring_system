@@ -34,6 +34,7 @@ content.innerHTML = `
 
 function clientCard(c){
   const statusClass = c.status === "online" ? "ok" : (c.status === "offline" ? "danger" : "warn");
+  const isOffline = c.status === "offline";
   return `
   <div class="card">
     <div class="kpi">
@@ -47,20 +48,20 @@ function clientCard(c){
     <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
       <div class="card" style="padding:10px">
         <div class="small">CPU</div>
-        <div class="value">${c.cpu ?? "—"}${c.cpu != null ? "%" : ""}</div>
+        <div class="value">${!isOffline && c.cpu != null ? c.cpu + "%" : "—"}</div>
       </div>
       <div class="card" style="padding:10px">
         <div class="small">RAM</div>
-        <div class="value">${c.ram ?? "—"}${c.ram != null ? "%" : ""}</div>
+        <div class="value">${!isOffline && c.ram != null ? c.ram + "%" : "—"}</div>
       </div>
       <div class="card" style="padding:10px">
         <div class="small">RX</div>
-        <div class="value">${c.rx_kbps ?? "—"}</div>
+        <div class="value">${!isOffline && c.rx_kbps != null ? c.rx_kbps : "—"}</div>
         <div class="small">kbps</div>
       </div>
       <div class="card" style="padding:10px">
         <div class="small">TX</div>
-        <div class="value">${c.tx_kbps ?? "—"}</div>
+        <div class="value">${!isOffline && c.tx_kbps != null ? c.tx_kbps : "—"}</div>
         <div class="small">kbps</div>
       </div>
     </div>
