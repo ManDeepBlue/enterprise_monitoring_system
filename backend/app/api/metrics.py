@@ -9,11 +9,17 @@ router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 @router.get("/{client_id}/latest", response_model=MetricOut | None)
 def latest(client_id: int, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
+    c = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not c or c.status == "offline":
+        return None
     m = (db.query(models.Metric).filter(models.Metric.client_id == client_id).order_by(models.Metric.ts.desc()).first())
     return m
 
 @router.get("/{client_id}/range", response_model=list[MetricOut])
 def range_metrics(client_id: int, minutes: int = 60, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
+    c = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not c or c.status == "offline":
+        return []
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     q = (db.query(models.Metric)
          .filter(models.Metric.client_id == client_id)
