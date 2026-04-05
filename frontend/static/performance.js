@@ -23,25 +23,72 @@ content.innerHTML = `
   </div>
 
   <div class="card" style="grid-column:1/-1">
-    <div style="font-weight:700;margin-bottom:8px">Trends</div>
-    <canvas id="chart" height="110"></canvas>
+    <div style="font-weight:700;margin-bottom:8px">System Health Trends</div>
+    <canvas id="chartSystem" height="80"></canvas>
+  </div>
+
+  <div class="card" style="grid-column:1/-1">
+    <div style="font-weight:700;margin-bottom:8px">Network & Traffic Trends</div>
+    <canvas id="chartNetwork" height="80"></canvas>
   </div>
 `;
 
-let chart;
-function makeChart(labels, series){
-  const ctx = document.getElementById("chart");
-  if(chart) chart.destroy();
-  chart = new Chart(ctx, {
+let chartSystem, chartNetwork;
+function makeCharts(labels, series){
+  const ctxS = document.getElementById("chartSystem");
+  if(chartSystem) chartSystem.destroy();
+  chartSystem = new Chart(ctxS, {
     type:"line",
     data:{ labels, datasets: [
-      {label:"CPU %", data: series.cpu, tension:.25},
-      {label:"RAM %", data: series.ram, tension:.25},
-      {label:"RX kbps", data: series.rx, tension:.25},
-      {label:"TX kbps", data: series.tx, tension:.25},
-      {label:"Connections", data: series.conn, tension:.25},
+      {
+        label:"CPU %", 
+        data: series.cpu, 
+        tension:.4, 
+        borderColor: "#3498db", 
+        backgroundColor: "rgba(52, 152, 219, 0.2)", 
+        fill: true,
+        pointRadius: 2
+      },
+      {
+        label:"RAM %", 
+        data: series.ram, 
+        tension:.4, 
+        borderColor: "#9b59b6", 
+        backgroundColor: "rgba(155, 89, 182, 0.2)", 
+        fill: true,
+        pointRadius: 2
+      },
     ]},
-    options:{ responsive:true, interaction:{mode:"index", intersect:false}, scales:{ x:{ticks:{maxTicksLimit:10}} } }
+    options:{ 
+      responsive:true, 
+      interaction:{mode:"index", intersect:false}, 
+      plugins: { legend: { display: true, position: 'top', align: 'end' } },
+      scales:{ 
+        x:{ticks:{maxTicksLimit:8}, grid: { display: false }}, 
+        y:{beginAtZero:true, max:100, grid: { color: "rgba(255,255,255,0.05)" }} 
+      } 
+    }
+  });
+
+  const ctxN = document.getElementById("chartNetwork");
+  if(chartNetwork) chartNetwork.destroy();
+  chartNetwork = new Chart(ctxN, {
+    type:"line",
+    data:{ labels, datasets: [
+      {label:"RX kbps", data: series.rx, tension:.4, borderColor: "#2ecc71", backgroundColor: "rgba(46, 204, 113, 0.1)", fill: true},
+      {label:"TX kbps", data: series.tx, tension:.4, borderColor: "#e67e22", backgroundColor: "rgba(230, 126, 34, 0.1)", fill: true},
+      {label:"Connections", data: series.conn, tension:.4, borderColor: "#f1c40f", yAxisID: 'y1', pointStyle: 'rectRot', radius: 4},
+    ]},
+    options:{ 
+      responsive:true, 
+      interaction:{mode:"index", intersect:false}, 
+      plugins: { legend: { display: true, position: 'top', align: 'end' } },
+      scales:{ 
+        x:{ticks:{maxTicksLimit:8}, grid: { display: false }}, 
+        y:{title:{display:true, text:"kbps"}, beginAtZero:true, grid: { color: "rgba(255,255,255,0.05)" }},
+        y1:{type:"linear", display:true, position:"right", title:{display:true, text:"Count"}, grid:{drawOnChartArea:false}}
+      } 
+    }
   });
 }
 
@@ -78,7 +125,7 @@ async function refresh(){
   ].join("");
 
   const labels = arr.map(x=>fmtTimeShort(x.ts));
-  makeChart(labels, {
+  makeCharts(labels, {
     cpu: arr.map(x=>x.cpu),
     ram: arr.map(x=>x.ram),
     rx: arr.map(x=>x.rx_kbps),

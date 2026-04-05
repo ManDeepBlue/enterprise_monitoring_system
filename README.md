@@ -1,59 +1,45 @@
-# Enterprise Network & Productivity Monitor
+# Enterprise Monitoring System
 
-This is my Final Year Project—a full-stack system designed to give a 360-degree view of an office network. It doesn't just track if a server is up; it monitors PC performance, scans for security risks on network devices, and even analyzes employee productivity based on browser activity.
+A real-time monitoring platform for tracking system performance, network device health, and employee productivity. This project handles everything from ICMP/SNMP polling to live data visualization with a FastAPI backend and a clean, responsive frontend.
 
-### What it actually does:
-* **Live PC Monitoring**: Tracks CPU, RAM, Disk, and Network usage in real-time from any computer running the agent.
-* **Network Health**: Pings routers, switches, and APs to make sure the backbone of the network is stable.
-* **Security Scans**: Includes a built-in port scanner that checks for open ports and gives a risk rating with suggestions on how to close them.
-* **Productivity Tracking**: The agent reads local browser history (Chrome/Edge) and categorizes sites into "Productive," "Social," or "Streaming" so you can see where the time is going.
-* **Smart Alerts**: Sends email notifications if a PC hits 90% CPU or if a critical device goes offline.
+## Core Features
 
----
+### 1. Network Device Monitoring
+- **ICMP Connectivity**: Automated background checks for routers, switches, and APs.
+- **Traceable Logging**: All connectivity checks are stored with the actual device name (not just an ID) for easier database debugging.
+- **SNMP Integration**: Real-time interface status querying (Admin vs. Oper status) and link health reporting.
 
-### Tech Stack
-* **Backend**: FastAPI (Python) — chosen for its speed and native WebSocket support.
-* **Database**: PostgreSQL — handles all the logs, metrics, and audit trails.
-* **Frontend**: Vanilla HTML/CSS/JS — kept it light and fast without heavy frameworks.
-* **Agent**: A lightweight Python script that runs on target machines using `psutil`.
+### 2. Performance Dashboard
+- **System Health**: Dedicated trend charts for CPU and RAM usage with high-visibility area fills.
+- **Network Traffic**: Separate tracking for RX/TX bandwidth and active connection counts.
+- **Multi-Axis Scaling**: Bandwidth and connection counts are plotted on separate scales so one doesn't squash the other.
 
----
+### 3. Analytics & Security
+- **Predictive Forecasting**: Simple linear regression models to predict future resource usage based on 4-hour trends.
+- **Security Assessment**: Automated port scanning and finding reports for managed clients.
+- **Audit Trail**: Full logging of administrative actions (adding/deleting devices, client changes) for accountability.
 
-### Getting Started (The Server)
+### 4. Real-time Infrastructure
+- **WebSockets**: Live updates for metrics and alerts without needing to refresh the page.
+- **Alert Engine**: Customizable thresholds for CPU, RAM, and connectivity failures with automated email notifications.
 
-The easiest way to run the whole backend is using Docker.
+## Tech Stack
+- **Backend**: Python 3.11, FastAPI, SQLAlchemy (PostgreSQL).
+- **Frontend**: Vanilla JS, Chart.js, CSS Grid/Flexbox.
+- **Infrastructure**: Docker & Docker Compose for easy deployment.
 
-1. **Fire up the containers**:
-   
-   docker compose up --build -d
-   
-2. **Open the Dashboard**:
-   Go to `http://localhost:8000/login.html` and log in.
+## Quick Start
 
----
-
-### Setting up the Monitoring Agent
-
-To monitor a PC, you need to run the agent on it.
-
-1. **Get the Agent folder**: Copy the `agent/` directory to the target PC.
-2. **Install requirements**:
+1. **Spin up the environment**:
    ```bash
-   pip install -r requirements.txt
-   ```
-3. **Configure it**:
-   Rename `config.example.json` to `config.json`.
-   * Set `server_url` to your server's IP (e.g., `http://192.168.1.50:8000`).
-   * Get the `client_id` and `agent_key` from the "Add Client" section in the Dashboard.
-4. **Run it**:
-   ```bash
-   python agent.py
+   docker-compose up --build
    ```
 
----
+2. **Access the Console**:
+   Navigate to `http://localhost:8000` and log in with your admin credentials.
 
-### A Note on Privacy & Security
-This tool is built for internal office monitoring. In a real-world setting, you should always inform users that the agent is running. 
+3. **Monitor Devices**:
+   Add your network devices in the "Network Device Monitoring" tab. The system will immediately start polling them and logging their status to the database.
 
-**Pro-Tip for Testing**: If you're testing on a real network, make sure the server's firewall allows traffic on port 8000, otherwise the agents won't be able to "check in."
-
+## Database Note
+The system automatically handles schema updates, including the latest `device_name` column for the `device_checks` table, ensuring logs are readable directly in tools like pgAdmin.

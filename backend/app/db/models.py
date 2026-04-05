@@ -60,6 +60,8 @@ class Device(Base):
     snmp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     snmp_community: Mapped[str] = mapped_column(String(255), default="public", nullable=False)
     snmp_port: Mapped[int] = mapped_column(Integer, default=161, nullable=False)
+    
+    checks: Mapped[list["DeviceCheck"]] = relationship("DeviceCheck", back_populates="device", cascade="all, delete-orphan")
 
 class SNMPInterfaceStatus(Base):
     __tablename__ = "snmp_interface_status"
@@ -77,9 +79,12 @@ class DeviceCheck(Base):
     __tablename__ = "device_checks"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True, nullable=False)
+    device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True, nullable=False)
     reachable: Mapped[bool] = mapped_column(Boolean, nullable=False)
     latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    device: Mapped["Device"] = relationship("Device", back_populates="checks")
 
 Index("ix_device_checks_device_ts", DeviceCheck.device_id, DeviceCheck.ts)
 

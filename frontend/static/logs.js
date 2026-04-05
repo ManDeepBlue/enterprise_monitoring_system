@@ -27,6 +27,26 @@ content.innerHTML = `
       </div>
     </div>
 
+    <!-- Recent Device Checks -->
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;margin-bottom:14px">Recent connectivity checks</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:1px solid rgba(255,255,255,.1);text-align:left">
+              <th style="padding:6px 10px;color:var(--muted);font-weight:500">Time</th>
+              <th style="padding:6px 10px;color:var(--muted);font-weight:500">Device</th>
+              <th style="padding:6px 10px;color:var(--muted);font-weight:500">Status</th>
+              <th style="padding:6px 10px;color:var(--muted);font-weight:500">Latency</th>
+            </tr>
+          </thead>
+          <tbody id="checks-body">
+            <tr><td colspan="4" style="padding:16px 10px;color:var(--muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Full audit log table -->
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -131,16 +151,40 @@ function renderAuditSummary(logs) {
   `;
 }
 
+function renderChecks(checks) {
+  const tbody = document.getElementById("checks-body");
+  if (!checks || !checks.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:16px 10px;color:var(--muted)">No check data available</td></tr>';
+    return;
+  }
+  tbody.innerHTML = checks.map((c, i) => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,.04);${i % 2 === 0 ? "" : "background:rgba(255,255,255,.02)"}">
+      <td style="padding:7px 10px;white-space:nowrap;color:var(--muted)">${esc(fmtTime(c.ts))}</td>
+      <td style="padding:7px 10px;font-weight:500">${esc(c.device_name || "—")}</td>
+      <td style="padding:7px 10px">
+        <span class="badge ${c.reachable ? 'ok' : 'danger'}" style="padding:2px 8px;font-size:11px">
+          ${c.reachable ? 'online' : 'offline'}
+        </span>
+      </td>
+      <td style="padding:7px 10px;color:var(--muted)">${c.latency_ms ? c.latency_ms.toFixed(1) + ' ms' : '—'}</td>
+    </tr>
+  `).join("");
+}
+
 async function load() {
   const dot = document.getElementById("health-dot");
   const txt = document.getElementById("health-text");
   dot.style.background = "#888";
   txt.textContent = "Checking…";
   try {
-    const data = await apiFetch("/api/db-stats");
+    const [data, checks] = await Promise.all([
+      apiFetch("/api/db-stats"),
+      apiFetch("/api/devices/all-checks?limit=20")
+    ]);
     dot.style.background = "#4caf50";
     txt.textContent = "Connected — " + fmtTime(data.checked_at);
     renderTableStats(data.tables);
+    renderChecks(checks);
     allLogs = data.recent_logs || [];
     renderLogs(allLogs);
     renderAuditSummary(allLogs);

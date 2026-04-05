@@ -39,6 +39,13 @@ def delete_device(device_id: int, db: Session = Depends(get_db), user=Depends(re
     db.delete(d); db.commit()
     return Msg(message="Deleted")
 
+@router.get("/all-checks", response_model=list[DeviceCheckOut])
+def list_all_checks(limit: int = 100, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
+    q = (db.query(models.DeviceCheck)
+         .order_by(models.DeviceCheck.ts.desc())
+         .limit(limit))
+    return q.all()
+
 @router.get("/{device_id}/checks", response_model=list[DeviceCheckOut])
 def checks(device_id: int, minutes: int = 120, db: Session = Depends(get_db), _=Depends(require_role("admin","analyst","readonly"))):
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)

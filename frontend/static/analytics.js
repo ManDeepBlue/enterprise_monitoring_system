@@ -21,7 +21,7 @@ content.innerHTML = `
   </div>
 
   <div class="card">
-    <div style="font-weight:700;margin-bottom:8px">Device Status (Last 2h)</div>
+    <div style="font-weight:700;margin-bottom:8px">Device Status (Last 2h): <span id="deviceName"></span></div>
     <div class="small">Select from Devices page to jump here for a specific device.</div>
     <div style="height:10px"></div>
     <table class="table">
@@ -53,6 +53,9 @@ async function loadDeviceFromHash(){
   const deviceId = hash.get("device");
   if(!deviceId) return;
   const checks = await apiFetch(`/api/devices/${deviceId}/checks?minutes=120`);
+  if(checks.length > 0) {
+    document.getElementById("deviceName").textContent = checks[0].device_name || `Device #${deviceId}`;
+  }
   document.getElementById("drows").innerHTML = checks.map(c=>`<tr>
     <td>${fmtTime(c.ts)}</td>
     <td>${c.reachable ? '<span class="badge ok">online</span>' : '<span class="badge danger">offline</span>'}</td>

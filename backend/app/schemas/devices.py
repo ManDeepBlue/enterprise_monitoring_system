@@ -23,6 +23,8 @@ class DeviceOut(DeviceBase):
         from_attributes = True
 
 class DeviceCheckOut(BaseModel):
+    device_id: int
+    device_name: str | None = None
     ts: datetime
     reachable: bool
     latency_ms: float | None

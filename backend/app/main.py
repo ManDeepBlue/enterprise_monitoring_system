@@ -25,6 +25,9 @@ from . import jobs
 async def lifespan(app: FastAPI):
     # Startup logic
     models.Base.metadata.create_all(bind=engine)
+    
+
+
     sched = AsyncIOScheduler()
     sched.add_job(jobs._job_alerts, "interval", seconds=15, max_instances=1)
     sched.add_job(jobs._job_mark_offline, "interval", seconds=5, max_instances=1)

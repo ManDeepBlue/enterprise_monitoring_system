@@ -59,7 +59,7 @@ async def _job_device_checks():
         for d in devices_q:
             ok, ms = await ping(d.host, timeout=timeout)
             try:
-                db.add(models.DeviceCheck(device_id=d.id, reachable=ok, latency_ms=ms))
+                db.add(models.DeviceCheck(device_id=d.id, device_name=d.name, reachable=ok, latency_ms=ms))
                 db.commit()
             except Exception:
                 # Device was deleted between the query and the commit — skip it cleanly
