@@ -1,15 +1,26 @@
 <!doctype html>
+<!--
+  Network Device Monitoring Page
+  ------------------------------
+  This page allows administrators to manage and monitor individual network devices
+  (routers, switches, access points) associated with different clients.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Network Device Monitoring • Enterprise Monitoring</title>
   <link rel="stylesheet" href="/assets.css"/>
+  <!-- Load Chart.js for potential status visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <!-- Main application container injected by app.js -->
   <div id="app"></div>
+  
+  <!-- Core application logic and routing -->
   <script src="/app.js"></script>
+  <!-- Page-specific logic for device management -->
   <script src="/devices.js"></script>
 </body>
 </html>

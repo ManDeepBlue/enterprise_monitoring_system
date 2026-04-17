@@ -1,15 +1,30 @@
 <!doctype html>
+<!-- 
+  System Settings Page
+  This file serves as the HTML shell for the System Settings interface.
+  It includes global styles and scripts, and a placeholder #app div 
+  where the layout and specific settings content are dynamically injected.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>System Settings • Enterprise Monitoring</title>
+  
+  <!-- Global application styles -->
   <link rel="stylesheet" href="/assets.css"/>
+  
+  <!-- Chart.js for any potential data visualization in settings (e.g., usage stats) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <!-- Dynamic content mount point -->
   <div id="app"></div>
+  
+  <!-- Core application logic and layout mounting -->
   <script src="/app.js"></script>
+  
+  <!-- Page-specific logic for settings, thresholds, and user management -->
   <script src="/settings.js"></script>
 </body>
 </html>

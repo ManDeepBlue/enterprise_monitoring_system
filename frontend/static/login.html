@@ -1,5 +1,11 @@
-
 <!doctype html>
+<!--
+  Login Page
+  ----------
+  Handles administrator authentication. 
+  Provides a secure interface for users to enter their credentials 
+  and receive a JWT token for subsequent API requests.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -18,6 +24,7 @@
         </div>
       </div>
 
+      <!-- Hint for initial setup - should be removed in production environments -->
       <div class="notice">
         Create admin through <code>/api/auth/bootstrap-admin?email=...&password=...</code>.
       </div>
@@ -37,27 +44,61 @@
   </main>
 
 <script>
+/**
+ * Login handler script
+ */
 const API = location.origin;
+
+/**
+ * Handle login button click.
+ * Authenticates user, stores JWT in localStorage, and redirects to dashboard.
+ */
 document.getElementById("btn").onclick = async () => {
-  document.getElementById("err").textContent = "";
-  try{
+  const errEl = document.getElementById("err");
+  errEl.textContent = "";
+  
+  try {
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
+    
+    if (!email || !password) {
+      errEl.textContent = "Please enter both email and password.";
+      return;
+    }
+
     const res = await fetch(API + "/api/auth/login", {
       method:"POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({email,password})
     });
-    if(!res.ok) throw new Error(await res.text());
+    
+    if(!res.ok) {
+      const errorData = await res.json().catch(() => ({ detail: "Invalid credentials" }));
+      throw new Error(errorData.detail || "Login failed");
+    }
+    
     const data = await res.json();
     console.log("Login success, role:", data.role);
+    
+    // Store authentication data securely in local storage
     localStorage.setItem("token", data.access_token);
     localStorage.setItem("role", data.role);
+    
+    // Redirect to the main dashboard
     location.href="/index.html";
-  }catch(e){
-    document.getElementById("err").textContent = "Login failed. ";
+  } catch(e) {
+    errEl.textContent = "Login failed: " + e.message;
   }
 };
+
+/**
+ * Allow "Enter" key to trigger login
+ */
+document.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById("btn").click();
+  }
+});
 </script>
 </body>
 </html>

@@ -1,7 +1,16 @@
-mountLayout("Alerts & Notifications", "Threshold-based alerts with multi-level severity and full event history.");
-const content = document.getElementById("content");
-content.className = "grid cols-3"; // 2/3 for table, 1/3 for sidebar
+/**
+ * Alerts & Notifications View
+ * --------------------------
+ * Displays a sortable/filterable table of system events and alerts, 
+ * categorized by severity (Critical, High, Medium, Info).
+ */
 
+mountLayout("Alerts & Notifications", "Threshold-based alerts with multi-level severity and full event history.");
+
+const content = document.getElementById("content");
+content.className = "grid cols-3"; // 2/3 for the event table, 1/3 for the summary sidebar
+
+// Static page structure
 content.innerHTML = `
   <div class="card" style="grid-column: span 2">
     <div class="row">
@@ -28,6 +37,10 @@ content.innerHTML = `
   </div>
 `;
 
+/**
+ * Convert a timestamp into a relative "time ago" string (e.g., "5m ago").
+ * @param {string} ts - The timestamp string.
+ */
 function timeAgo(ts) {
   const d = parseDate(ts);
   if(isNaN(d)) return "—";
@@ -42,16 +55,25 @@ function timeAgo(ts) {
 }
 
 let clients = [];
+
+/**
+ * Helper to generate a styled badge based on alert severity.
+ * @param {string} sev - The severity level.
+ */
 function sevBadge(sev){
   const cls = sev==="critical"||sev==="high" ? "danger" : (sev==="medium" ? "warn" : "ok");
   return `<span class="badge ${cls}">${sev}</span>`;
 }
 
+/**
+ * Fetch and render the latest alerts and their aggregate statistics.
+ */
 async function load(){
+  // Fetch clients to map client_id to names.
   clients = await apiFetch("/api/clients");
   const alerts = await apiFetch("/api/alerts?limit=200");
   
-  // Update Table
+  // Render the alert rows in the table.
   document.getElementById("rows").innerHTML = alerts.map(a=>{
     const cn = (clients.find(c=>c.id===a.client_id)||{}).name || a.client_id;
     return `<tr>
@@ -65,7 +87,7 @@ async function load(){
 
   document.getElementById("meta").textContent = `Showing ${alerts.length} most recent events`;
 
-  // Update Sidebar Stats
+  // Calculate summary statistics for the sidebar.
   const stats = { critical:0, high:0, medium:0, info:0 };
   alerts.forEach(a => { if(stats[a.severity] !== undefined) stats[a.severity]++; });
 
@@ -91,6 +113,9 @@ async function load(){
   `;
 }
 
+/**
+ * Update the status of a specific alert (e.g., 'resolved').
+ */
 async function setStatusAlert(id, status){
   await apiFetch(`/api/alerts/${id}`, {method:"PATCH", body: JSON.stringify({status})});
   await load();
@@ -99,16 +124,21 @@ async function setStatusAlert(id, status){
 document.getElementById("refresh").onclick = load;
 
 let ws;
+/**
+ * WebSocket connection for real-time alert event listener.
+ */
 function connectWS(){
   ws = new WebSocket((location.protocol==="https:"?"wss://":"ws://") + location.host + "/ws/realtime");
   ws.onopen = ()=>{ setStatus(true,"Live"); ws.send("ping"); };
   ws.onmessage = (ev)=>{ try{
     const msg = JSON.parse(ev.data);
+    // Reload the list if the server announces an alert update.
     if(msg.type === "alerts_updated") load();
   }catch{} };
   ws.onclose = ()=>{ setStatus(false,"Disconnected"); setTimeout(connectWS, 1500); };
 }
 
+// Initialization
 (async ()=>{
   if(!getToken()) location.href="/login.html";
   await load();

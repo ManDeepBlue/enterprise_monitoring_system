@@ -1,7 +1,15 @@
+"""
+Domain Categorization Service
+-----------------------------
+This module provides logic for classifying web domains into categories
+(e.g., Productivity, Social Media, Streaming) based on predefined rules.
+"""
 
 from __future__ import annotations
 
-# Simple rule-based categorization (can be extended in Settings)
+# Simple rule-based categorization.
+# These rules map partial domain matches (needles) to a category name.
+# This can be extended via the system settings in a production environment.
 DEFAULT_RULES = {
     "productive": [
         "docs.google.com", "github.com", "gitlab.com", "stackoverflow.com", "jira", 
@@ -30,10 +38,21 @@ DEFAULT_RULES = {
 }
 
 def categorize_domain(domain: str, rules: dict | None = None) -> str:
+    """
+    Classify a domain string into a category based on keyword matching.
+    
+    The function checks if any of the keywords defined in 'rules' are present
+    within the 'domain' string. If no match is found, it defaults to 'other'.
+    
+    :param domain: The domain name to categorize (e.g., 'github.com').
+    :param rules: An optional dictionary of rules. Defaults to DEFAULT_RULES.
+    :return: The category name as a string.
+    """
     rules = rules or DEFAULT_RULES
     d = (domain or "").lower()
     for cat, needles in rules.items():
         for n in needles:
+            # Check for substring match to handle subdomains and variations.
             if n.lower() in d:
                 return cat
     return "other"

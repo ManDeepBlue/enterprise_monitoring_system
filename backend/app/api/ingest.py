@@ -1,3 +1,9 @@
+"""
+Data ingestion API endpoints.
+Used by remote monitoring agents to upload system metrics and web activity logs.
+Requires 'X-Agent-Key' header for authentication.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
@@ -12,6 +18,11 @@ from ..ws import ws_manager
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
 def _auth_agent(db: Session, client_id: int, agent_key: str) -> models.Client:
+    """
+    Internal helper to authenticate an agent based on ID and provided key.
+    
+    Verifies that the client exists and the key matches the stored hash.
+    """
     c = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not c:
         raise HTTPException(404, "Client not found")
@@ -21,25 +32,63 @@ def _auth_agent(db: Session, client_id: int, agent_key: str) -> models.Client:
 
 @router.post("/{client_id}/metrics")
 async def ingest_metrics(client_id: int, payload: MetricIn, x_agent_key: str = Header(..., alias="X-Agent-Key"), db: Session = Depends(get_db)):
+    """
+    Ingest system performance metrics from a client agent.
+    
+    Updates client 'last_seen' and 'status', stores metrics in DB, 
+    and broadcasts the update via WebSockets for real-time dashboard updates.
+    """
     c = _auth_agent(db, client_id, x_agent_key)
+    
+    # Use provided timestamp or current UTC time
     ts = payload.ts or datetime.now(timezone.utc)
-    m = models.Metric(client_id=client_id, ts=ts, cpu=payload.cpu, ram=payload.ram, disk=payload.disk,
-                      rx_kbps=payload.rx_kbps, tx_kbps=payload.tx_kbps, connections=payload.connections)
+    
+    m = models.Metric(
+        client_id=client_id, 
+        ts=ts, 
+        cpu=payload.cpu, 
+        ram=payload.ram, 
+        disk=payload.disk,
+        rx_kbps=payload.rx_kbps, 
+        tx_kbps=payload.tx_kbps, 
+        connections=payload.connections
+    )
+    
+    # Update client heartbeat info
     c.last_seen = datetime.now(timezone.utc)
     c.status = "online"
-    db.add(m); db.commit()
+    
+    db.add(m)
+    db.commit()
 
-    await ws_manager.broadcast("realtime", {"type":"metric", "client_id":client_id, "ts": ts.isoformat(),
-                                           "cpu":payload.cpu,"ram":payload.ram,"disk":payload.disk,
-                                           "rx_kbps":payload.rx_kbps,"tx_kbps":payload.tx_kbps,"connections":payload.connections})
+    # Broadcast to all connected WebSocket clients in the 'realtime' group
+    await ws_manager.broadcast("realtime", {
+        "type": "metric", 
+        "client_id": client_id, 
+        "ts": ts.isoformat(),
+        "cpu": payload.cpu,
+        "ram": payload.ram,
+        "disk": payload.disk,
+        "rx_kbps": payload.rx_kbps,
+        "tx_kbps": payload.tx_kbps,
+        "connections": payload.connections
+    })
+    
     return {"ok": True}
 
 @router.post("/{client_id}/web")
 async def ingest_web(client_id: int, payload: WebActivityIn, x_agent_key: str = Header(..., alias="X-Agent-Key"), db: Session = Depends(get_db)):
+    """
+    Ingest web activity logs from a client agent.
+    
+    Includes idempotency check via timestamp and URL hash.
+    Categorizes the domain if not already categorized by the agent.
+    """
     _auth_agent(db, client_id, x_agent_key)
+    
     ts = payload.ts or datetime.now(timezone.utc)
 
-    # Check for existing record to prevent duplication (idempotency)
+    # Idempotency check: prevent duplicate ingestion of the same activity event
     existing = (db.query(models.WebActivity)
                 .filter(models.WebActivity.client_id == client_id)
                 .filter(models.WebActivity.ts == ts)
@@ -49,12 +98,27 @@ async def ingest_web(client_id: int, payload: WebActivityIn, x_agent_key: str = 
     if existing:
         return {"ok": True, "detail": "already_exists"}
 
-    # Server-side categorization safeguard
+    # Determine category: use agent-provided one or fallback to server-side categorizer
     category = payload.category or categorize_domain(payload.domain)
 
-    w = models.WebActivity(client_id=client_id, user_label=payload.user_label, ts=ts, domain=payload.domain,
-                           url_hash=payload.url_hash, category=category)
-    db.add(w); db.commit()
-    await ws_manager.broadcast("realtime", {"type":"web", "client_id":client_id, "ts": ts.isoformat(),
-                                           "domain":payload.domain, "category":category})
+    w = models.WebActivity(
+        client_id=client_id, 
+        user_label=payload.user_label, 
+        ts=ts, 
+        domain=payload.domain,
+        url_hash=payload.url_hash, 
+        category=category
+    )
+    db.add(w)
+    db.commit()
+    
+    # Notify dashboard of new web activity
+    await ws_manager.broadcast("realtime", {
+        "type": "web", 
+        "client_id": client_id, 
+        "ts": ts.isoformat(),
+        "domain": payload.domain, 
+        "category": category
+    })
+    
     return {"ok": True}

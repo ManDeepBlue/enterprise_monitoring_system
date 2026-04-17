@@ -1,8 +1,16 @@
+/**
+ * Dashboard Logic
+ * ---------------
+ * Manages the main overview page, including client registration,
+ * health status monitoring, and real-time updates via WebSockets.
+ */
+
 mountLayout("Dashboard", "Centralized multi-client overview with real-time system health.");
+
 const content = document.getElementById("content");
 content.className = "grid cols-3";
 
-// Static shell — written once, never overwritten by refresh()
+// Initialize the static UI components (Add Client form and Key display box).
 content.innerHTML = `
   <div class="card" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
     <div style="flex:1;min-width:180px">
@@ -32,6 +40,11 @@ content.innerHTML = `
   <div id="clientList" style="display:contents"></div>
 `;
 
+/**
+ * Generate the HTML for a single client health card.
+ * @param {Object} c - The client data object from the API.
+ * @returns {string} HTML string for the client card.
+ */
 function clientCard(c){
   const statusClass = c.status === "online" ? "ok" : (c.status === "offline" ? "danger" : "warn");
   const isOffline = c.status === "offline";
@@ -73,11 +86,17 @@ function clientCard(c){
   </div>`;
 }
 
+/**
+ * Simple HTML escaping to prevent XSS.
+ * @param {string} str - The string to escape.
+ */
 function escHtml(str){
   return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 
-// Only touches #clientList — the Add Client card and key box are never wiped
+/**
+ * Fetch the latest client health data and refresh the list UI.
+ */
 async function refresh(){
   try {
     const clients = await apiFetch("/api/analytics/clients/health");
@@ -87,6 +106,9 @@ async function refresh(){
   }
 }
 
+/**
+ * Handle the 'Add Client' form submission.
+ */
 async function createClient(){
   const nameEl = document.getElementById("clientName");
   const name = nameEl.value.trim();
@@ -98,6 +120,7 @@ async function createClient(){
       body: JSON.stringify({ name })
     });
 
+    // Display the newly created ID and agent key (the latter is only available once).
     document.getElementById("clientId").textContent = result.id;
     document.getElementById("agentKey").textContent = result.agent_key;
     document.getElementById("keyBox").style.display = "flex";
@@ -109,6 +132,11 @@ async function createClient(){
   }
 }
 
+/**
+ * Delete a client and its associated data after user confirmation.
+ * @param {number} id - The client ID.
+ * @param {HTMLButtonElement} btn - The button element that triggered the delete.
+ */
 async function deleteClient(id, btn){
   if(!confirm("Delete this client? All associated data will be removed.")) return;
   btn.disabled = true;
@@ -123,6 +151,9 @@ async function deleteClient(id, btn){
   }
 }
 
+/**
+ * Copy the generated agent key to the system clipboard.
+ */
 function copyKey(){
   const key = document.getElementById("agentKey").textContent;
   navigator.clipboard.writeText(key).then(() => {
@@ -135,26 +166,35 @@ function copyKey(){
 let ws;
 let retryDelay = 1500;
 
+/**
+ * Establish a WebSocket connection for real-time health and alert updates.
+ */
 function connectWS(){
   ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/realtime");
-  ws.onopen = () => { retryDelay = 1500; setStatus(true, "Live"); ws.send("ping"); };
+  ws.onopen = () => { 
+    retryDelay = 1500; 
+    setStatus(true, "Live"); 
+    ws.send("ping"); 
+  };
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
+      // Refresh the dashboard if a new metric or alert state change is received.
       if(msg.type === "metric" || msg.type === "alerts_updated"){ refresh(); }
     } catch {}
   };
   ws.onclose = () => {
     setStatus(false, "Disconnected");
+    // Exponential backoff for reconnection.
     setTimeout(connectWS, retryDelay);
     retryDelay = Math.min(retryDelay * 2, 30000);
   };
   ws.onerror = () => { setStatus(false, "Error"); };
 }
 
+// Initialization: Ensure authentication, fetch initial data, and start WebSocket.
 (async () => {
   if(!getToken()) location.href = "/login.html";
   await refresh();
   connectWS();
 })();
-// deleteClient is defined inline via onclick — append here is a no-op placeholder

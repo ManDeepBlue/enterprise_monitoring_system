@@ -1,8 +1,22 @@
+/**
+ * SNMP Monitoring Module.
+ * 
+ * Provides functionality to query networking devices for their interface status
+ * using the SNMP protocol. Supports both manual queries and real-time updates 
+ * via WebSockets.
+ */
 
+// Initialize the dashboard layout for the SNMP page
 mountLayout("SNMP Link Status", "Monitor interface status and port details for networking devices.");
+
 const content = document.getElementById("content");
+
+/**
+ * Define the SNMP query form and results table structure.
+ */
 content.className = "grid cols-1";
 content.innerHTML = `
+  <!-- Card: SNMP Query Configuration -->
   <div class="card">
     <div style="font-weight:700;margin-bottom:8px">Select or Query Device</div>
     <div class="row" style="display:flex; gap:10px; align-items:flex-end;">
@@ -15,6 +29,7 @@ content.innerHTML = `
     <div class="small" id="msg" style="margin-top:10px"></div>
   </div>
 
+  <!-- Card: SNMP Query Results (Initially Hidden) -->
   <div class="card" id="resultsCard" style="display:none">
     <div style="font-weight:700;margin-bottom:12px">Interface Status for <span id="targetHost"></span></div>
     <table class="table">
@@ -33,6 +48,7 @@ content.innerHTML = `
   </div>
 `;
 
+// Element references
 const deviceSelect = document.getElementById("deviceSelect");
 const hostInput = document.getElementById("host");
 const commInput = document.getElementById("community");
@@ -45,6 +61,10 @@ const targetHost = document.getElementById("targetHost");
 
 let currentDeviceId = null;
 
+/**
+ * Loads the list of registered devices from the backend to populate the select dropdown.
+ * Also handles initial routing if a device ID is provided in the URL hash.
+ */
 async function loadDevices(){
   try {
     const devices = await apiFetch("/api/devices");
@@ -68,6 +88,11 @@ async function loadDevices(){
   }
 }
 
+/**
+ * Fetches the most recent cached SNMP status for a known device.
+ * @param {number} deviceId - The unique ID of the device.
+ * @param {string} host - The hostname or IP address (for display).
+ */
 async function loadLatestStatus(deviceId, host) {
   try {
     const data = await apiFetch(`/api/snmp/latest/${deviceId}`);
@@ -94,7 +119,15 @@ async function loadLatestStatus(deviceId, host) {
   }
 }
 
+/**
+ * Renders the interface data into the results table.
+ * @param {Array<Object>} interfaces - List of interface status objects.
+ */
 function renderInterfaces(interfaces) {
+  /**
+   * Helper to style status text based on RFC 1213 states.
+   * 1 = up (Green), 2 = down (Red), Others = warn (Yellow).
+   */
   const getStatusStyle = (status) => {
     if (status === 1) return "color: #2ecc71; font-weight: bold;";
     if (status === 2) return "color: #e74c3c; font-weight: bold;";
@@ -110,6 +143,7 @@ function renderInterfaces(interfaces) {
       <td style="${getStatusStyle(iface.oper_status)}">${iface.oper_status_name}</td>
       <td>
         <div style="display:flex; align-items:center; gap:8px">
+          <!-- Small dot indicator for quick visual health check -->
           <div style="width:10px; height:10px; border-radius:50%; background-color:${iface.oper_status === 1 ? '#2ecc71' : '#e74c3c'}"></div>
           <span>${iface.reason}</span>
         </div>
@@ -118,6 +152,10 @@ function renderInterfaces(interfaces) {
   `).join("");
 }
 
+/**
+ * Handler for when a device is selected from the dropdown.
+ * Synchronizes inputs and triggers a status load.
+ */
 function onDeviceChange() {
   const opt = deviceSelect.options[deviceSelect.selectedIndex];
   if (opt.value) {
@@ -140,6 +178,10 @@ function onDeviceChange() {
 
 deviceSelect.onchange = onDeviceChange;
 
+/**
+ * Performs a real-time SNMP query against the specified host.
+ * This bypasses cached data and triggers a direct network probe.
+ */
 queryBtn.onclick = async () => {
   const host = hostInput.value.trim();
   const community = commInput.value.trim();
@@ -165,6 +207,11 @@ queryBtn.onclick = async () => {
   }
 };
 
+/**
+ * WebSocket setup for real-time interface updates.
+ * If the current viewing device is updated by the background scanner, 
+ * refresh the interface list immediately.
+ */
 const ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/realtime`);
 ws.onmessage = (e) => {
     const data = JSON.parse(e.data);
@@ -173,6 +220,9 @@ ws.onmessage = (e) => {
     }
 };
 
+/**
+ * Initialization IIFE: Auth check and initial device load.
+ */
 (async ()=>{
   if(!getToken()) location.href="/login.html";
   await loadDevices();

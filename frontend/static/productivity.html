@@ -1,15 +1,23 @@
 <!doctype html>
+<!--
+  Employee Productivity Monitoring Page
+  --------------------------------------
+  Provides insights into web activity for selected clients.
+  Includes a categorical breakdown (doughnut chart) and a detailed activity log.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Employee Productivity • Enterprise Monitoring</title>
   <link rel="stylesheet" href="/assets.css"/>
+  <!-- Chart.js for productivity category visualization -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <div id="app"></div>
   <script src="/app.js"></script>
+  <!-- Page-specific logic for activity summaries and categorization -->
   <script src="/productivity.js"></script>
 </body>
 </html>

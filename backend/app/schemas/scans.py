@@ -1,12 +1,16 @@
-
+"""
+Pydantic schemas for Security Scans.
+"""
 from pydantic import BaseModel
 from datetime import datetime
 
 class ScanRequest(BaseModel):
+    """Schema for requesting a new security scan."""
     client_id: int
     target: str
 
 class ScanRunOut(BaseModel):
+    """Schema for outputting scan run metadata."""
     id: int
     client_id: int
     target: str
@@ -18,6 +22,7 @@ class ScanRunOut(BaseModel):
         from_attributes = True
 
 class FindingOut(BaseModel):
+    """Schema for outputting specific port findings from a scan."""
     port: int
     proto: str
     state: str

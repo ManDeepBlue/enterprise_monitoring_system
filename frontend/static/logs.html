@@ -1,15 +1,27 @@
 <!doctype html>
+<!--
+  Logs & Database Health Page
+  ---------------------------
+  This page provides an administrative overview of the system's database status,
+  including table row counts, an audit trail of administrative actions,
+  and recent connectivity check results from the ICMP scanner.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Logs & Database • Enterprise Monitoring</title>
   <link rel="stylesheet" href="/assets.css"/>
+  <!-- Chart.js is included for potential future data visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <!-- Main application container where the shared layout is mounted -->
   <div id="app"></div>
+  
+  <!-- Shared core logic (API, Auth, UI Mounting) -->
   <script src="/app.js"></script>
+  <!-- Page-specific logic for database stats and audit logs -->
   <script src="/logs.js"></script>
 </body>
 </html>

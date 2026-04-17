@@ -1,3 +1,9 @@
+"""
+SNMP Monitoring Service
+-----------------------
+Provides functionality to query network devices via SNMP (Simple Network 
+Management Protocol) to retrieve interface status, descriptions, and metadata.
+"""
 
 from pysnmp.hlapi.asyncio import (
     SnmpEngine, 
@@ -12,8 +18,17 @@ import asyncio
 
 async def fetch_snmp_interfaces(host: str, community: str = 'public', port: int = 161):
     """
-    Fetches interface information using SNMP walk.
-    Returns a list of dictionaries with interface details.
+    Query a remote host for its network interface table using SNMP WALK (GETNEXT).
+    
+    This function retrieves interface description, admin status, operational 
+    status, and alias (if supported by the device). It then processes these 
+    values into a human-readable format with inferred failure reasons.
+    
+    :param host: The target device IP or hostname.
+    :param community: The SNMP community string (default: 'public').
+    :param port: The target SNMP port (default: 161).
+    :return: A list of dictionaries, each containing detailed interface info.
+    :raises Exception: On network failure or SNMP errors.
     """
     print(f"Querying SNMP for host: {host} on port: {port}")
     interfaces = {}
@@ -21,29 +36,30 @@ async def fetch_snmp_interfaces(host: str, community: str = 'public', port: int 
     snmp_engine = SnmpEngine()
     community_data = CommunityData(community)
     try:
+        # Initialize the asynchronous UDP transport.
         transport_target = await UdpTransportTarget.create((host, port), timeout=3, retries=1)
     except Exception as e:
         raise Exception(f"Failed to initialize SNMP transport: {str(e)}")
 
-    # Base OIDs for the walk
-    # ifDescr: 1.3.6.1.2.1.2.2.1.2
-    # ifAdminStatus: 1.3.6.1.2.1.2.2.1.7
-    # ifOperStatus: 1.3.6.1.2.1.2.2.1.8
-    # ifAlias: 1.3.6.1.2.1.31.1.1.1.18
+    # Define the base OIDs for the walk (Standard MIB-II and IF-MIB).
+    # 1.3.6.1.2.1.2.2.1.2     -> ifDescr (Description)
+    # 1.3.6.1.2.1.2.2.1.7     -> ifAdminStatus (Desired state: up/down)
+    # 1.3.6.1.2.1.2.2.1.8     -> ifOperStatus (Actual state: up/down)
+    # 1.3.6.1.2.1.31.1.1.1.18 -> ifAlias (Interface name/alias)
 
     base_oids = [
-        ObjectIdentity('1.3.6.1.2.1.2.2.1.2'), # ifDescr
-        ObjectIdentity('1.3.6.1.2.1.2.2.1.7'), # ifAdminStatus
-        ObjectIdentity('1.3.6.1.2.1.2.2.1.8'), # ifOperStatus
-        ObjectIdentity('1.3.6.1.2.1.31.1.1.1.18'), # ifAlias
+        ObjectIdentity('1.3.6.1.2.1.2.2.1.2'), 
+        ObjectIdentity('1.3.6.1.2.1.2.2.1.7'),
+        ObjectIdentity('1.3.6.1.2.1.2.2.1.8'),
+        ObjectIdentity('1.3.6.1.2.1.31.1.1.1.18'),
     ]
 
-    # Current var-binds for the walk, initialized with the base OIDs
+    # Initialize the var-binds list with the starting OIDs.
     var_binds = [ObjectType(oid) for oid in base_oids]
 
     try:
         while True:
-            # Perform a single GETNEXT/GETBULK step
+            # Perform a single GETNEXT step for all OIDs in parallel.
             try:
                 errorIndication, errorStatus, errorIndex, varBindTable = await next_cmd(
                     snmp_engine,
@@ -63,34 +79,30 @@ async def fetch_snmp_interfaces(host: str, community: str = 'public', port: int 
             if not varBindTable:
                 break
 
-            # Process the row (one varBind for each requested column)
-            # varBindTable in next_cmd (asyncio) is just a list of ObjectTypes for the row
-            
-            # Check if we've moved beyond the subtree of the first OID (ifDescr)
-            # This is the standard "end of walk" condition
+            # The walker continues until the device returns OIDs outside the base subtree.
             first_oid, first_val = varBindTable[0]
             if not base_oids[0].isPrefixOf(first_oid):
                 break
             
-            # Extract index from the OID (last component)
+            # Extract the unique interface index from the end of the OID.
             index = first_oid[-1]
             
             if index not in interfaces:
                 interfaces[index] = {"index": int(index)}
             
-            # Map values based on position in the request
+            # Map the response values to their respective attributes.
             interfaces[index]["description"] = str(varBindTable[0][1])
             interfaces[index]["admin_status"] = int(varBindTable[1][1])
             interfaces[index]["oper_status"] = int(varBindTable[2][1])
             
-            # Handle ifAlias (might be in a different table or missing)
+            # Handle ifAlias specifically, as some devices may not support this MIB branch.
             alias_oid, alias_val = varBindTable[3]
             if base_oids[3].isPrefixOf(alias_oid):
                 interfaces[index]["alias"] = str(alias_val)
             else:
                 interfaces[index]["alias"] = ""
                 
-            # Prepare the next step by using the returned OIDs
+            # Update var_binds to the last received OIDs for the next iteration.
             var_binds = varBindTable
 
     except Exception as e:
@@ -98,19 +110,28 @@ async def fetch_snmp_interfaces(host: str, community: str = 'public', port: int 
         traceback.print_exc()
         raise e
     
-    # Post-process to add human-readable status and reasons
+    # Post-process raw SNMP integer values into human-readable statuses.
     results = []
     for idx in sorted(interfaces.keys()):
         iface = interfaces[idx]
         admin = iface.get("admin_status")
         oper = iface.get("oper_status")
         
-        status_map = {1: "up", 2: "down", 3: "testing", 4: "unknown", 5: "dormant", 6: "notPresent", 7: "lowerLayerDown"}
+        # Mapping defined in RFC 2863
+        status_map = {
+            1: "up", 
+            2: "down", 
+            3: "testing", 
+            4: "unknown", 
+            5: "dormant", 
+            6: "notPresent", 
+            7: "lowerLayerDown"
+        }
         
         iface["admin_status_name"] = status_map.get(admin, "unknown")
         iface["oper_status_name"] = status_map.get(oper, "unknown")
         
-        # Determine reason if down
+        # Determine a human-readable reason for the interface state.
         reason = "N/A"
         if oper == 2: # down
             if admin == 2:

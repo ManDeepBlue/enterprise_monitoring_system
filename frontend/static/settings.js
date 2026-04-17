@@ -1,8 +1,22 @@
+/**
+ * System Settings & User Management module.
+ * 
+ * Handles the configuration of monitoring thresholds, data retention policies,
+ * and user account management including roles and status.
+ */
+
+// Initialize the common layout with page-specific title and description
 mountLayout("System Settings", "Monitoring intervals, alert thresholds, user and policy configuration.");
+
 const content = document.getElementById("content");
-// Changing from cols-2 to auto-fit or just a flex layout for better spacing, but we'll stick to cols-2
+
+/**
+ * Define the main grid layout for the settings page.
+ * Uses a 2-column grid to organize different setting cards.
+ */
 content.className = "grid cols-2";
 content.innerHTML = `
+  <!-- Card: Alert Thresholds -->
   <div class="card">
     <div style="font-weight:700;margin-bottom:8px">Alert Thresholds</div>
     <div class="row">
@@ -19,6 +33,7 @@ content.innerHTML = `
     <div class="small" id="msg" style="margin-top:10px"></div>
   </div>
 
+  <!-- Card: Privacy & Retention Policy -->
   <div class="card">
     <div style="font-weight:700;margin-bottom:8px">Privacy & Retention Policy</div>
     <div class="notice">
@@ -34,6 +49,7 @@ content.innerHTML = `
     <div class="small" id="msg2" style="margin-top:10px"></div>
   </div>
 
+  <!-- Card: User Management (Full width) -->
   <div class="card" style="grid-column: 1 / -1">
     <div style="font-weight:700;margin-bottom:8px">User Management</div>
     <div class="row" style="align-items:flex-end">
@@ -75,6 +91,10 @@ content.innerHTML = `
   </div>
 `;
 
+/**
+ * Fetches the list of all registered users and renders them in the table.
+ * Includes inline editing for roles and active status.
+ */
 async function loadUsers() {
   const tbody = document.getElementById("userTableBody");
   try {
@@ -103,6 +123,12 @@ async function loadUsers() {
   }
 }
 
+/**
+ * Updates a specific field for a user.
+ * @param {number} id - User ID.
+ * @param {string} field - Field name to update ('role', 'is_active', etc.).
+ * @param {any} value - New value for the field.
+ */
 window.updateUser = async (id, field, value) => {
   try {
     const payload = {};
@@ -111,13 +137,17 @@ window.updateUser = async (id, field, value) => {
       method: "PATCH",
       body: JSON.stringify(payload)
     });
-    // Optional: reload users
+    // No reload needed for simple toggles/selects, but can be added if UI needs sync
   } catch (e) {
     alert("Failed to update user: " + e.message);
-    loadUsers(); // revert changes on error
+    loadUsers(); // Revert local state by reloading from server
   }
 };
 
+/**
+ * Deletes a user account after confirmation.
+ * @param {number} id - User ID to delete.
+ */
 window.deleteUser = async (id) => {
   if(!confirm("Are you sure you want to delete this user?")) return;
   try {
@@ -128,14 +158,21 @@ window.deleteUser = async (id) => {
   }
 };
 
+/**
+ * Initializes settings by fetching existing threshold and retention configurations.
+ * Populates form inputs with current server values.
+ */
 async function load(){
   const all = await apiFetch("/api/settings");
+  
+  // Load alert thresholds
   const th = (all.find(x=>x.key==="alert_thresholds")||{}).value || {cpu_high:85,ram_high:85,disk_high:90,connections_high:1000};
   document.getElementById("cpu").value = th.cpu_high;
   document.getElementById("ram").value = th.ram_high;
   document.getElementById("disk").value = th.disk_high;
   document.getElementById("conn").value = th.connections_high;
 
+  // Load retention policy
   const pol = (all.find(x=>x.key==="retention")||{}).value || {metrics_days:30, web_days:30};
   document.getElementById("mret").value = pol.metrics_days;
   document.getElementById("wret").value = pol.web_days;
@@ -143,6 +180,10 @@ async function load(){
   await loadUsers();
 }
 
+/**
+ * Save handler for Alert Thresholds.
+ * Updates global system triggers for alerts across all devices.
+ */
 document.getElementById("save").onclick = async ()=>{
   const msg = document.getElementById("msg");
   msg.textContent = "Saving…";
@@ -157,6 +198,10 @@ document.getElementById("save").onclick = async ()=>{
   }catch(e){ msg.textContent = "Failed: " + e.message; }
 };
 
+/**
+ * Save handler for Retention Policy.
+ * Sets the duration for automated data cleanup tasks in the backend.
+ */
 document.getElementById("saveRet").onclick = async ()=>{
   const msg = document.getElementById("msg2");
   msg.textContent = "Saving…";
@@ -169,6 +214,10 @@ document.getElementById("saveRet").onclick = async ()=>{
   }catch(e){ msg.textContent = "Failed: " + e.message; }
 };
 
+/**
+ * Event handler for adding a new user.
+ * Validates inputs and resets form upon successful creation.
+ */
 document.getElementById("addUser").onclick = async ()=>{
   const msgUser = document.getElementById("msgUser");
   const email = document.getElementById("newEmail").value.trim();
@@ -197,6 +246,9 @@ document.getElementById("addUser").onclick = async ()=>{
   }
 };
 
+/**
+ * Initialization IIFE: Check authentication, load data, and set page status.
+ */
 (async ()=>{
   if(!getToken()) location.href="/login.html";
   await load();

@@ -1,3 +1,10 @@
+"""
+Alert Engine Service
+--------------------
+This module provides the core logic for evaluating system metrics and audit logs
+to generate alerts, deduplicate them, and send notifications.
+"""
+
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
@@ -5,6 +12,8 @@ from sqlalchemy.orm import Session
 from ..db import models
 from .email_service import send_alert_email
 
+# Default thresholds for various system metrics.
+# These act as fallbacks if no specific configuration is provided.
 DEFAULT_THRESHOLDS = {
     "cpu_high": 85.0,
     "ram_high": 85.0,
@@ -14,6 +23,14 @@ DEFAULT_THRESHOLDS = {
 }
 
 def _severity_from_value(value: float, warn: float, crit: float) -> str:
+    """
+    Determine the alert severity based on the measured value and threshold boundaries.
+    
+    :param value: The current metric value.
+    :param warn: The warning threshold.
+    :param crit: The critical threshold.
+    :return: A string representing the severity level ('critical', 'high', or 'info').
+    """
     if value >= crit:
         return "critical"
     if value >= warn:
@@ -21,10 +38,22 @@ def _severity_from_value(value: float, warn: float, crit: float) -> str:
     return "info"
 
 def eval_metrics(db: Session, thresholds: dict) -> list[models.Alert]:
+    """
+    Evaluate the latest metrics for all clients against the provided thresholds.
+    
+    This function iterates through all registered clients, fetches their most
+    recent metric record, and compares CPU, RAM, Disk, and Connection counts
+    against defined limits.
+    
+    :param db: The database session.
+    :param thresholds: A dictionary of metric thresholds.
+    :return: A list of newly generated Alert objects (not yet persisted).
+    """
     alerts: list[models.Alert] = []
     clients = db.query(models.Client).all()
 
     for c in clients:
+        # Fetch only the single most recent metric for this client.
         latest = (
             db.query(models.Metric)
             .filter(models.Metric.client_id == c.id)
@@ -34,6 +63,7 @@ def eval_metrics(db: Session, thresholds: dict) -> list[models.Alert]:
         if not latest:
             continue
 
+        # CPU Usage Check
         if latest.cpu >= thresholds.get("cpu_high", 85.0):
             sev = _severity_from_value(latest.cpu, thresholds.get("cpu_high", 85.0), 95.0)
             alerts.append(
@@ -45,6 +75,7 @@ def eval_metrics(db: Session, thresholds: dict) -> list[models.Alert]:
                 )
             )
 
+        # RAM Usage Check
         if latest.ram >= thresholds.get("ram_high", 85.0):
             sev = _severity_from_value(latest.ram, thresholds.get("ram_high", 85.0), 95.0)
             alerts.append(
@@ -56,6 +87,7 @@ def eval_metrics(db: Session, thresholds: dict) -> list[models.Alert]:
                 )
             )
 
+        # Disk Usage Check
         if latest.disk >= thresholds.get("disk_high", 90.0):
             sev = _severity_from_value(latest.disk, thresholds.get("disk_high", 90.0), 98.0)
             alerts.append(
@@ -67,6 +99,7 @@ def eval_metrics(db: Session, thresholds: dict) -> list[models.Alert]:
                 )
             )
 
+        # Active Connections Check
         if latest.connections >= thresholds.get("connections_high", 1000):
             alerts.append(
                 models.Alert(
@@ -81,12 +114,23 @@ def eval_metrics(db: Session, thresholds: dict) -> list[models.Alert]:
 
 
 def eval_audit_logs(db: Session, thresholds: dict) -> list[models.Alert]:
-    """Detect suspicious activity from the audit log trail."""
+    """
+    Detect suspicious activity or sensitive operations from the audit log trail.
+    
+    This analyzes the last 10 minutes of logs for:
+    1. Brute force attempts (multiple failed logins).
+    2. Sensitive administrative actions (deletions, setting updates).
+    
+    :param db: The database session.
+    :param thresholds: A dictionary of thresholds (unused here but kept for signature consistency).
+    :return: A list of newly generated security Alert objects.
+    """
     alerts: list[models.Alert] = []
     now = datetime.now(timezone.utc)
     lookback = now - timedelta(minutes=10)
 
     # 1. Brute Force Detection: Multiple failed logins for same email
+    # We group by email and count failures within the lookback window.
     failed_logins = (
         db.query(models.AuditLog.actor_email, func.count(models.AuditLog.id).label("count"))
         .filter(models.AuditLog.action == "login_failed")
@@ -97,9 +141,8 @@ def eval_audit_logs(db: Session, thresholds: dict) -> list[models.Alert]:
     )
 
     for email, count in failed_logins:
-        # We use client_id=1 as a placeholder for system-wide alerts if no specific client is tied
-        # Or better, find an admin client or just use a convention. 
-        # For now, let's look for any client or just associate with ID 1 if it exists.
+        # Security alerts are often system-wide. We associate them with the first client found
+        # or ID 1 as a fallback for the dashboard to display them.
         first_client = db.query(models.Client).first()
         cid = first_client.id if first_client else 1
         alerts.append(
@@ -122,6 +165,7 @@ def eval_audit_logs(db: Session, thresholds: dict) -> list[models.Alert]:
 
     for log in recent_sensitive:
         cid = 1
+        # Try to associate the alert with a specific client if mentioned in the log entity.
         if log.entity == "client" and log.entity_id.isdigit():
             cid = int(log.entity_id)
         else:
@@ -141,11 +185,23 @@ def eval_audit_logs(db: Session, thresholds: dict) -> list[models.Alert]:
 
 
 async def dedupe_and_persist(db: Session, new_alerts: list[models.Alert], window_sec: int = 60) -> int:
+    """
+    Prevent alert fatigue by deduping similar alerts and persisting new ones.
+    
+    If an open alert of the same type and client exists within the 'window_sec' time frame,
+    the new alert is discarded. Otherwise, it is saved to the database and an email is sent.
+    
+    :param db: The database session.
+    :param new_alerts: List of candidate Alert objects.
+    :param window_sec: The time window in seconds for deduplication.
+    :return: The number of new alerts actually created.
+    """
     now = datetime.now(timezone.utc)
     created = 0
     alerts_to_email: list[models.Alert] = []
 
     for a in new_alerts:
+        # Check for existing open alerts of the same type for this client within the time window.
         exists = (
             db.query(models.Alert)
             .filter(models.Alert.client_id == a.client_id)
@@ -165,8 +221,9 @@ async def dedupe_and_persist(db: Session, new_alerts: list[models.Alert], window
     if created:
         db.commit()
 
+        # For each new alert, send an email notification with enriched system context.
         for a in alerts_to_email:
-            # Enrichment: Find recent audit logs for this client to provide context
+            # Enrichment: Find the most recent audit logs to provide context in the email.
             context_str = ""
             recent_logs = (
                 db.query(models.AuditLog)
@@ -195,6 +252,7 @@ async def dedupe_and_persist(db: Session, new_alerts: list[models.Alert], window
                     ),
                 )
             except Exception as e:
+                # Log the error but don't crash the background job.
                 print("Email notification failed:", e)
 
     return created

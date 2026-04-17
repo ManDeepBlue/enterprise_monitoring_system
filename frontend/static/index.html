@@ -1,15 +1,26 @@
 <!doctype html>
+<!--
+  Main Dashboard Entry Point
+  --------------------------
+  The primary landing page for authenticated users. It provides an overview
+  of all monitored clients, their health status, and real-time performance metrics.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Dashboard • Enterprise Monitoring</title>
   <link rel="stylesheet" href="/assets.css"/>
+  <!-- Chart.js is used for rendering health and performance charts in the dashboard -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <!-- The #app div is the target for the shared layout injected by app.js -->
   <div id="app"></div>
+  
+  <!-- app.js contains core shared logic (layout, API helpers, auth, WS status) -->
   <script src="/app.js"></script>
+  <!-- dashboard.js contains the specific logic for this overview page -->
   <script src="/dashboard.js"></script>
 </body>
 </html>

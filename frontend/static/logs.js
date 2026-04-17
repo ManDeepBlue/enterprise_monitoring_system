@@ -1,13 +1,24 @@
+/**
+ * Logs & Database Status Logic
+ * ----------------------------
+ * Manages the display of database health, table statistics, 
+ * network connectivity check history, and the administrative audit trail.
+ */
+
 mountLayout("Logs & Database", "Live row counts, database health, and audit trail.");
+
 const content = document.getElementById("content");
 
+/**
+ * Initialize the page layout with several cards for different data types.
+ */
 content.innerHTML = `
   <div style="display:flex;flex-direction:column;gap:20px">
 
     <!-- Top row: DB Health + Table Stats -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
-      <!-- DB Health -->
+      <!-- DB Health & Row Counts -->
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <div style="font-weight:700;font-size:15px">Database health</div>
@@ -27,7 +38,7 @@ content.innerHTML = `
       </div>
     </div>
 
-    <!-- Recent Device Checks -->
+    <!-- Recent Device Connectivity History -->
     <div class="card">
       <div style="font-weight:700;font-size:15px;margin-bottom:14px">Recent connectivity checks</div>
       <div style="overflow-x:auto">
@@ -47,7 +58,7 @@ content.innerHTML = `
       </div>
     </div>
 
-    <!-- Full audit log table -->
+    <!-- Full interactive audit log table -->
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="font-weight:700;font-size:15px">Recent activity</div>
@@ -77,6 +88,11 @@ content.innerHTML = `
 
 let allLogs = [];
 
+/**
+ * Escapes HTML to prevent XSS.
+ * @param {string} str - The string to escape.
+ * @returns {string} - Escaped HTML string.
+ */
 function esc(str) {
   if (!str) return "";
   const div = document.createElement("div");
@@ -84,9 +100,16 @@ function esc(str) {
   return div.innerHTML;
 }
 
+/**
+ * Renders the table statistics (row counts) into the UI.
+ * @param {Array} tables - Array of table objects with 'name' and 'rows'.
+ */
 function renderTableStats(tables) {
   const el = document.getElementById("table-stats");
-  if (!tables || !tables.length) { el.innerHTML = '<span class="small" style="color:var(--muted)">No data</span>'; return; }
+  if (!tables || !tables.length) { 
+    el.innerHTML = '<span class="small" style="color:var(--muted)">No data</span>'; 
+    return; 
+  }
   el.innerHTML = tables.map(t => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">
       <span style="font-size:13px;color:var(--muted)">${esc(t.name)}</span>
@@ -95,6 +118,10 @@ function renderTableStats(tables) {
   `).join("");
 }
 
+/**
+ * Renders the audit log entries into the table.
+ * @param {Array} logs - Array of audit log entry objects.
+ */
 function renderLogs(logs) {
   const tbody = document.getElementById("log-body");
   const empty = document.getElementById("log-empty");
@@ -119,6 +146,10 @@ function renderLogs(logs) {
   `).join("");
 }
 
+/**
+ * Calculates and renders a summary of the audit logs.
+ * @param {Array} logs - Array of audit log entry objects.
+ */
 function renderAuditSummary(logs) {
   const el = document.getElementById("audit-summary");
   if (!logs || !logs.length) {
@@ -151,6 +182,10 @@ function renderAuditSummary(logs) {
   `;
 }
 
+/**
+ * Renders the recent device connectivity checks.
+ * @param {Array} checks - Array of check objects from the ICMP scanner.
+ */
 function renderChecks(checks) {
   const tbody = document.getElementById("checks-body");
   if (!checks || !checks.length) {
@@ -171,25 +206,38 @@ function renderChecks(checks) {
   `).join("");
 }
 
+/**
+ * Primary data loading function. Fetches DB stats and check history in parallel.
+ */
 async function load() {
   const dot = document.getElementById("health-dot");
   const txt = document.getElementById("health-text");
+  
+  // Update status to indicate loading
   dot.style.background = "#888";
   txt.textContent = "Checking…";
+  
   try {
     const [data, checks] = await Promise.all([
       apiFetch("/api/db-stats"),
       apiFetch("/api/devices/all-checks?limit=20")
     ]);
+    
+    // Update UI with health status
     dot.style.background = "#4caf50";
     txt.textContent = "Connected — " + fmtTime(data.checked_at);
+    
+    // Render the various data sections
     renderTableStats(data.tables);
     renderChecks(checks);
+    
     allLogs = data.recent_logs || [];
     renderLogs(allLogs);
     renderAuditSummary(allLogs);
+    
     setStatus(true, "Ready");
   } catch (e) {
+    // Handle loading errors
     dot.style.background = "#e24b4a";
     txt.textContent = "Failed: " + e.message;
     document.getElementById("table-stats").innerHTML = '<span class="small" style="color:var(--muted)">Could not load stats</span>';
@@ -197,8 +245,12 @@ async function load() {
   }
 }
 
+// Bind refresh button click
 document.getElementById("refresh-btn").onclick = load;
 
+/**
+ * Real-time filtering logic for the audit log table.
+ */
 document.getElementById("log-filter").oninput = function() {
   const q = this.value.toLowerCase();
   renderLogs(q
@@ -209,6 +261,9 @@ document.getElementById("log-filter").oninput = function() {
     : allLogs);
 };
 
+/**
+ * Initialization: Auth check and initial data load.
+ */
 (async () => {
   if (!getToken()) { location.href = "/login.html"; return; }
   await load();

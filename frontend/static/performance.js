@@ -1,7 +1,19 @@
+/**
+ * Performance Monitoring Logic
+ * ----------------------------
+ * Handles fetching, displaying, and charting of client performance data.
+ * Supports real-time updates via WebSockets and historical trend analysis via Chart.js.
+ */
+
 mountLayout("Performance Monitoring", "Real-time CPU, RAM, bandwidth and connections with historical trends.");
+
 const content = document.getElementById("content");
 content.className = "grid cols-2";
 
+/**
+ * Initialize the dashboard UI components including selection controls,
+ * KPI cards, and trend chart canvases.
+ */
 content.innerHTML = `
   <div class="card">
     <div style="font-weight:700;margin-bottom:8px">Select Client</div>
@@ -34,9 +46,18 @@ content.innerHTML = `
 `;
 
 let chartSystem, chartNetwork;
+
+/**
+ * Creates and updates Chart.js instances for system and network metrics.
+ * @param {Array<string>} labels - Time labels for the x-axis.
+ * @param {Object} series - Data series for CPU, RAM, Network, etc.
+ */
 function makeCharts(labels, series){
   const ctxS = document.getElementById("chartSystem");
+  
+  // Clean up existing chart instance before creating a new one
   if(chartSystem) chartSystem.destroy();
+  
   chartSystem = new Chart(ctxS, {
     type:"line",
     data:{ labels, datasets: [
@@ -92,6 +113,13 @@ function makeCharts(labels, series){
   });
 }
 
+/**
+ * Generates a KPI card HTML string.
+ * @param {string} label - The KPI title.
+ * @param {number|string} value - The KPI value.
+ * @param {string} [suffix=""] - Optional unit suffix.
+ * @returns {string} HTML string.
+ */
 function kpi(label, value, suffix=""){
   return `<div class="card" style="padding:10px">
     <div class="small">${label}</div>
@@ -99,58 +127,97 @@ function kpi(label, value, suffix=""){
   </div>`;
 }
 
+/**
+ * Fetches clients and populates the selection dropdown.
+ * Also handles initial client selection from the URL hash.
+ */
 async function loadClients(){
-  const clients = await apiFetch("/api/clients");
-  const sel = document.getElementById("client");
-  sel.innerHTML = clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
-  const hash = new URLSearchParams(location.hash.replace("#",""));
-  if(hash.get("client")) sel.value = hash.get("client");
+  try {
+    const clients = await apiFetch("/api/clients");
+    const sel = document.getElementById("client");
+    sel.innerHTML = clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+    
+    // Check if a client ID was provided in the URL hash (e.g. #client=5)
+    const hash = new URLSearchParams(location.hash.replace("#",""));
+    if(hash.get("client")) sel.value = hash.get("client");
+  } catch(err) {
+    console.error("Failed to load clients:", err);
+  }
 }
 
+/**
+ * Fetches and refreshes metrics for the currently selected client and time range.
+ */
 async function refresh(){
   const clientId = parseInt(document.getElementById("client").value,10);
   const minutes = parseInt(document.getElementById("range").value,10);
 
-  const latest = await apiFetch(`/api/metrics/${clientId}/latest`);
-  const arr = await apiFetch(`/api/metrics/${clientId}/range?minutes=${minutes}`);
+  if(isNaN(clientId)) return;
 
-  document.getElementById("meta").textContent = latest?.ts ? "Latest: " + fmtTime(latest.ts) : "No data";
-  document.getElementById("kpis").innerHTML = [
-    kpi("CPU", latest?.cpu, "%"),
-    kpi("RAM", latest?.ram, "%"),
-    kpi("Disk", latest?.disk, "%"),
-    kpi("RX", latest?.rx_kbps, " kbps"),
-    kpi("TX", latest?.tx_kbps, " kbps"),
-    kpi("Connections", latest?.connections, ""),
-  ].join("");
+  try {
+    // Fetch latest point and historical range in parallel
+    const [latest, arr] = await Promise.all([
+      apiFetch(`/api/metrics/${clientId}/latest`),
+      apiFetch(`/api/metrics/${clientId}/range?minutes=${minutes}`)
+    ]);
 
-  const labels = arr.map(x=>fmtTimeShort(x.ts));
-  makeCharts(labels, {
-    cpu: arr.map(x=>x.cpu),
-    ram: arr.map(x=>x.ram),
-    rx: arr.map(x=>x.rx_kbps),
-    tx: arr.map(x=>x.tx_kbps),
-    conn: arr.map(x=>x.connections),
-  });
+    // Update real-time snapshot
+    document.getElementById("meta").textContent = latest?.ts ? "Latest: " + fmtTime(latest.ts) : "No data";
+    document.getElementById("kpis").innerHTML = [
+      kpi("CPU", latest?.cpu, "%"),
+      kpi("RAM", latest?.ram, "%"),
+      kpi("Disk", latest?.disk, "%"),
+      kpi("RX", latest?.rx_kbps, " kbps"),
+      kpi("TX", latest?.tx_kbps, " kbps"),
+      kpi("Connections", latest?.connections, ""),
+    ].join("");
+
+    // Prepare labels and series for charting
+    const labels = arr.map(x=>fmtTimeShort(x.ts));
+    makeCharts(labels, {
+      cpu: arr.map(x=>x.cpu),
+      ram: arr.map(x=>x.ram),
+      rx: arr.map(x=>x.rx_kbps),
+      tx: arr.map(x=>x.tx_kbps),
+      conn: arr.map(x=>x.connections),
+    });
+  } catch(err) {
+    console.error("Failed to refresh metrics:", err);
+  }
 }
 
+// Bind manual refresh button
 document.getElementById("refresh").onclick = refresh;
 
 let ws;
+/**
+ * Establishes a WebSocket connection for real-time metric updates.
+ */
 function connectWS(){
   ws = new WebSocket((location.protocol==="https:"?"wss://":"ws://") + location.host + "/ws/realtime");
-  ws.onopen = ()=>{ setStatus(true,"Live"); ws.send("ping"); };
-  ws.onmessage = (ev)=>{ try{
+  ws.onopen = ()=>{ 
+    setStatus(true,"Live"); 
+    ws.send("ping"); 
+  };
+  ws.onmessage = (ev)=>{ 
+    try {
       const msg = JSON.parse(ev.data);
       if(msg.type === "metric"){
         const clientId = parseInt(document.getElementById("client").value,10);
+        // Refresh only if the message is for the currently viewed client
         if(msg.client_id === clientId) refresh();
       }
-    }catch{}
+    } catch {}
   };
-  ws.onclose = ()=>{ setStatus(false,"Disconnected"); setTimeout(connectWS, 1500); };
+  ws.onclose = ()=>{ 
+    setStatus(false,"Disconnected"); 
+    setTimeout(connectWS, 2000); // Reconnect after 2 seconds
+  };
 }
 
+/**
+ * Initialization: Auth check, load clients, fetch initial data, and start WS.
+ */
 (async ()=>{
   if(!getToken()) location.href="/login.html";
   await loadClients();

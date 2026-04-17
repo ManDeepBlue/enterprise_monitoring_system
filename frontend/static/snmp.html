@@ -1,14 +1,26 @@
 <!doctype html>
+<!-- 
+  SNMP Link Status Page
+  A dedicated interface for querying and viewing the real-time status 
+  of network interface cards (NICs) on networking devices via SNMP.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>SNMP Link Status • Enterprise Monitoring</title>
+  
+  <!-- Shared application styling -->
   <link rel="stylesheet" href="/assets.css"/>
 </head>
 <body>
+  <!-- Container for the dynamic UI shell and page content -->
   <div id="app"></div>
+  
+  <!-- Framework/utility logic for layout and API communication -->
   <script src="/app.js"></script>
+  
+  <!-- SNMP-specific logic for device discovery and interface status queries -->
   <script src="/snmp.js"></script>
 </body>
 </html>

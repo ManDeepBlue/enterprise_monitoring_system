@@ -1,3 +1,7 @@
+"""
+API endpoints for SNMP operations and monitoring.
+Allows querying live devices via SNMP and retrieving historical interface status.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -12,10 +16,14 @@ router = APIRouter(prefix="/api/snmp", tags=["snmp"])
 @router.get("/latest/{device_id}", response_model=List[SNMPInterfaceStatusOut])
 def get_latest_snmp(device_id: int, db: Session = Depends(get_db), _=Depends(require_role("admin", "analyst", "readonly"))):
     """
-    Get the most recent polled status for each interface of a device.
+    Retrieve the most recent polled status for each interface of a specific device.
+    
+    This query uses a subquery to find the maximum timestamp for each unique 
+    interface index to ensure only the latest state is returned.
     """
-    # For each unique interface_index, get the record with the latest timestamp
     from sqlalchemy import func
+    
+    # Subquery to find the latest timestamp per interface_index for the device
     subq = (
         db.query(
             models.SNMPInterfaceStatus.interface_index,
@@ -26,6 +34,7 @@ def get_latest_snmp(device_id: int, db: Session = Depends(get_db), _=Depends(req
         .subquery()
     )
     
+    # Join the main table with the subquery to fetch the full records for those latest timestamps
     q = (
         db.query(models.SNMPInterfaceStatus)
         .join(subq, (models.SNMPInterfaceStatus.interface_index == subq.c.interface_index) & 
@@ -42,21 +51,31 @@ async def query_snmp(
     port: int = Query(161, description="The SNMP port"),
     _=Depends(require_role("admin", "analyst", "readonly"))
 ):
+    """
+    Perform a live SNMP query against a target device (GET version).
+    
+    Fetches interface information including description, status, and traffic counters.
+    """
     try:
         interfaces_data = await fetch_snmp_interfaces(host, community, port)
-        # Convert to list of SNMPInterface objects
+        # Convert dictionary data from service to Pydantic models
         interfaces = [SNMPInterface(**iface) for iface in interfaces_data]
         return SNMPResponse(host=host, interfaces=interfaces)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"SNMP query failed: {str(e)}")
 
 @router.post("/query", response_model=SNMPResponse)
 async def query_snmp_post(
     payload: SNMPQuery,
     _=Depends(require_role("admin", "analyst", "readonly"))
 ):
+    """
+    Perform a live SNMP query against a target device (POST version).
+    
+    Accepts connection parameters in the request body.
+    """
     try:
         interfaces_data = await fetch_snmp_interfaces(payload.host, payload.community, payload.port)
         interfaces = [SNMPInterface(**iface) for iface in interfaces_data]
@@ -64,4 +83,4 @@ async def query_snmp_post(
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"SNMP query failed: {str(e)}")

@@ -1,8 +1,11 @@
-
+"""
+Pydantic schemas for Alert data.
+"""
 from pydantic import BaseModel
 from datetime import datetime
 
 class AlertOut(BaseModel):
+    """Schema for outputting alert details."""
     id: int
     client_id: int
     ts: datetime
@@ -16,4 +19,5 @@ class AlertOut(BaseModel):
         from_attributes = True
 
 class AlertAck(BaseModel):
+    """Schema for acknowledging or closing an alert."""
     status: str  # ack|closed

@@ -1,15 +1,23 @@
 <!doctype html>
+<!--
+  Performance Monitoring Page
+  ---------------------------
+  Displays real-time and historical performance metrics for a selected client.
+  Features interactive charts for CPU, RAM, and Network traffic using Chart.js.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Performance Monitoring • Enterprise Monitoring</title>
   <link rel="stylesheet" href="/assets.css"/>
+  <!-- Chart.js library for rendering performance trends -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <div id="app"></div>
   <script src="/app.js"></script>
+  <!-- Page-specific logic for fetching and charting performance metrics -->
   <script src="/performance.js"></script>
 </body>
 </html>
