@@ -3,6 +3,6 @@
   "client_id": 1,
   "agent_key": "CHANGE_ME_FROM_SERVER",
   "interval_sec": 5,
-  "user_label": "mandeep",
+  "user_label": "name",
   "enable_web_activity": true
 }
