@@ -18,15 +18,20 @@ try:
     _SECRET_KEY = settings.jwt_secret
     _ALGORITHM = settings.jwt_algorithm
     _ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_minutes
+    _ENV = settings.environment
 except Exception:
     import os
-    _SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "change-me-in-production")
+    _SECRET_KEY = os.environ.get("JWT_SECRET")
     _ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
-    # Default to 7 days if not configured
     _ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7)))
+    _ENV = os.environ.get("ENVIRONMENT", "dev")
 
+# Security Check: Prevent insecure fallbacks in production
 if not _SECRET_KEY:
-    _SECRET_KEY = "change-me-in-production"
+    if _ENV == "dev":
+        _SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"
+    else:
+        raise RuntimeError("JWT_SECRET environment variable is missing in production environment!")
 
 # Initialize Passlib CryptContext for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
